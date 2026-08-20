@@ -539,9 +539,14 @@
 
 <script>
 (function () {
-  // ============ CONFIGURE THIS ============
-  const BACKEND_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
-  // ==========================================
+  // ============ SUPABASE CONNECTION ============
+  // These are safe to have in the page: the publishable key only grants
+  // what Row Level Security explicitly allows (read the board, register,
+  // log a run). The admin passcode is never exposed here — it's verified
+  // inside the database.
+  const SUPABASE_URL = 'https://aqkxtssiivmjrnoghxta.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_BZziH98VbogU_zYgukbQyg_rybCODGm';
+  // ==============================================
 
   const root = document.getElementById('app-root');
   const PROFILE_KEY = 'runChallengeProfileV2';
@@ -587,28 +592,96 @@
   function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function todayStr() { return new Date().toISOString().slice(0, 10); }
 
-  // ---------- Backend calls ----------
-  function jsonpRequest(url) {
-    return new Promise((resolve, reject) => {
-      const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-      const script = document.createElement('script');
-      let done = false;
-      window[cbName] = function (data) { done = true; resolve(data); cleanup(); };
-      script.onerror = function () { if (!done) { reject(new Error('Could not reach backend.')); cleanup(); } };
-      function cleanup() { delete window[cbName]; script.remove(); }
-      const sep = url.indexOf('?') === -1 ? '?' : '&';
-      script.src = url + sep + 'callback=' + cbName;
-      document.body.appendChild(script);
-      setTimeout(() => { if (!done) { reject(new Error('Request timed out.')); cleanup(); } }, 12000);
+  // ---------- Supabase calls ----------
+  async function sbFetch(path, options) {
+    const opts = options || {};
+    const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+      method: opts.method || 'GET',
+      headers: Object.assign({
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      }, opts.headers || {}),
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('Request failed (' + res.status + '): ' + text);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  function sbRpc(fnName, args) {
+    return sbFetch('rpc/' + fnName, { method: 'POST', body: args || {} });
+  }
+
+  async function lookupEmployee(employeeId) {
+    const rows = await sbFetch('employees?employee_id=eq.' + encodeURIComponent(employeeId) + '&select=employee_id,name,category');
+    if (rows && rows.length > 0) {
+      return { found: true, employee: { employeeId: rows[0].employee_id, name: rows[0].name, category: rows[0].category } };
+    }
+    return { found: false };
+  }
+
+  async function registerEmployee(employeeId, name, category) {
+    await sbFetch('employees', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: { employee_id: employeeId, name: name, category: category }
+    });
+    return { success: true };
+  }
+
+  async function logRun(employeeId, date, distanceKm, minutes) {
+    await sbFetch('entries', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: { employee_id: employeeId, run_date: date, distance_km: distanceKm, minutes: minutes }
+    });
+    return { success: true };
+  }
+
+  function loadWeeklyStats(category) {
+    return sbRpc('weekly_stats', { p_category: category || 'all' });
+  }
+
+  async function loadViewerSummary() {
+    const overall = await loadWeeklyStats('all');
+    const cats = await Promise.all(['Beginner', 'Intermediate', 'Expert'].map(c => loadWeeklyStats(c)));
+    const allTime = await sbFetch('entries?select=distance_km');
+    const allTimeKm = (allTime || []).reduce((s, r) => s + Number(r.distance_km || 0), 0);
+    return {
+      config: overall.config,
+      thisWeek: {
+        rangeStart: overall.rangeStart, rangeEnd: overall.rangeEnd,
+        companyKm: overall.companyKm, participants: overall.participants,
+        top10: overall.top10
+      },
+      categories: cats.map((s, i) => ({
+        category: ['Beginner', 'Intermediate', 'Expert'][i],
+        companyKm: s.companyKm, participants: s.participants, top3: (s.top10 || []).slice(0, 3)
+      })),
+      allTimeKm: Math.round(allTimeKm * 100) / 100
+    };
+  }
+
+  function loadAdmin(passcode) {
+    return sbRpc('admin_data', { p_passcode: passcode });
+  }
+
+  function saveConfig(passcode, cfg) {
+    return sbRpc('update_config', {
+      p_passcode: passcode,
+      p_title: cfg.title,
+      p_start_date: cfg.startDate || null,
+      p_end_date: cfg.endDate || null,
+      p_company_target_km: Number(cfg.companyTargetKm) || null,
+      p_beginner_km: Number(cfg.beginnerKm) || null,
+      p_intermediate_km: Number(cfg.intermediateKm) || null,
+      p_expert_km: Number(cfg.expertKm) || null
     });
   }
-  async function postBackend(data) {
-    await fetch(BACKEND_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(data) });
-  }
-  function lookupEmployee(employeeId) { return jsonpRequest(BACKEND_URL + '?action=lookup&employeeId=' + encodeURIComponent(employeeId)); }
-  function loadWeeklyStats(category) { return jsonpRequest(BACKEND_URL + '?action=weeklyStats&category=' + encodeURIComponent(category || 'all')); }
-  function loadViewerSummary() { return jsonpRequest(BACKEND_URL + '?action=viewerSummary'); }
-  function loadAdmin(passcode) { return jsonpRequest(BACKEND_URL + '?action=admin&passcode=' + encodeURIComponent(passcode)); }
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
@@ -616,10 +689,6 @@
 
   // ---------- Bootstrapping ----------
   async function init() {
-    if (BACKEND_URL.indexOf('PASTE_YOUR') === 0) {
-      root.innerHTML = '<div class="loading-state" style="margin:60px 20px;">⚠️ Set BACKEND_URL near the top of the &lt;script&gt; tag first.</div>';
-      return;
-    }
     if (state.profile) {
       // Re-verify against backend (source of truth), fall back to cached copy if offline
       try {
@@ -866,7 +935,7 @@
       if (!state.registerDraft.category) { statusEl.innerHTML = '<div class="error-msg">Please pick a category.</div>'; return; }
 
       const btn = root.querySelector('#reg-btn'); btn.disabled = true; btn.textContent = 'Setting up…';
-      await postBackend({ action: 'register', employeeId: state.registerDraft.employeeId, name, category: state.registerDraft.category });
+      await registerEmployee(state.registerDraft.employeeId, name, state.registerDraft.category);
       await new Promise(r => setTimeout(r, 1200)); // give Apps Script a moment to write
       try {
         const result = await lookupEmployee(state.registerDraft.employeeId);
@@ -987,11 +1056,16 @@
     return '–';
   }
 
-  function loadStravaStatus(employeeId) { return jsonpRequest(BACKEND_URL + '?action=stravaStatus&employeeId=' + encodeURIComponent(employeeId)); }
-  function loadStravaAuthUrl(employeeId) { return jsonpRequest(BACKEND_URL + '?action=stravaAuthUrl&employeeId=' + encodeURIComponent(employeeId)); }
-  function disconnectStravaCall(employeeId) { return jsonpRequest(BACKEND_URL + '?action=stravaDisconnect&employeeId=' + encodeURIComponent(employeeId)); }
+  // Strava auto-sync is not wired up on the Supabase backend yet — it needs
+  // an Edge Function to handle the OAuth callback. Until then the card is
+  // hidden rather than shown as a button that would fail.
+  const STRAVA_ENABLED = false;
+  async function loadStravaStatus(employeeId) { return { connected: false }; }
+  async function loadStravaAuthUrl(employeeId) { return { error: 'Strava sync is not set up yet.' }; }
+  async function disconnectStravaCall(employeeId) { return { success: true }; }
 
   function renderStravaCard(connected) {
+    if (!STRAVA_ENABLED) return '';
     if (connected) {
       return `
         <div class="strava-card connected">
@@ -1096,7 +1170,7 @@
         state.formStatus = { type: 'err', msg: 'That looks too high — max 100km per entry.' }; render(); return;
       }
       const btn = panel.querySelector('#submit-btn'); btn.disabled = true; btn.textContent = 'Logging…';
-      await postBackend({ action: 'logRun', employeeId: state.profile.employeeId, date, distanceKm, minutes });
+      await logRun(state.profile.employeeId, date, distanceKm, minutes);
       state.formStatus = { type: 'ok', msg: `Logged ${distanceKm}km for ${date}. Nice work!` };
       await goToTab('dashboard');
     });
@@ -1419,18 +1493,30 @@
     panel.querySelector('#cfg-save-btn').addEventListener('click', async () => {
       const statusEl = panel.querySelector('#cfg-status');
       const passcode = sessionStorage.getItem(ADMIN_KEY);
-      await postBackend({
-        action: 'updateConfig', passcode: passcode,
-        title: panel.querySelector('#cfg-title').value,
-        companyTargetKm: panel.querySelector('#cfg-company').value,
-        startDate: panel.querySelector('#cfg-start').value,
-        endDate: panel.querySelector('#cfg-end').value,
-        beginnerKm: panel.querySelector('#cfg-beg').value,
-        intermediateKm: panel.querySelector('#cfg-int').value,
-        expertKm: panel.querySelector('#cfg-exp').value
-      });
-      statusEl.innerHTML = '<div class="confirm-msg">Saved (allow a few seconds for it to fully sync).</div>';
-      setTimeout(async () => { state.adminData = await loadAdmin(passcode); renderAdminTab(panel); }, 1500);
+      const btn = panel.querySelector('#cfg-save-btn');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const res = await saveConfig(passcode, {
+          title: panel.querySelector('#cfg-title').value,
+          companyTargetKm: panel.querySelector('#cfg-company').value,
+          startDate: panel.querySelector('#cfg-start').value,
+          endDate: panel.querySelector('#cfg-end').value,
+          beginnerKm: panel.querySelector('#cfg-beg').value,
+          intermediateKm: panel.querySelector('#cfg-int').value,
+          expertKm: panel.querySelector('#cfg-exp').value
+        });
+        if (res && res.success === false) {
+          statusEl.innerHTML = '<div class="error-msg">' + escapeHtml(res.error || 'Could not save.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Save Settings';
+          return;
+        }
+        statusEl.innerHTML = '<div class="confirm-msg">Settings saved.</div>';
+        state.adminData = await loadAdmin(passcode);
+        renderAdminTab(panel);
+      } catch (e) {
+        statusEl.innerHTML = '<div class="error-msg">Could not save right now — please try again.</div>';
+        btn.disabled = false; btn.textContent = 'Save Settings';
+      }
     });
 
     panel.querySelector('#csv-btn').addEventListener('click', () => {
