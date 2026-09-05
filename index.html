@@ -606,6 +606,7 @@
   .section-hint { font-size:12.5px; color:var(--ink-soft); margin:-4px 0 12px; line-height:1.45; }
   .field select, .field-dark select { font-family:'Inter',sans-serif; font-size:14.5px; padding:11px 13px; border:1.5px solid var(--line); border-radius:9px; color:var(--ink); background:var(--paper); width:100%; }
   .group-km .u { font-size:9px; }
+  .pw-chip { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; background:var(--gold-light); border:1px solid #F0DBA6; color:#8A6110; padding:3px 7px; border-radius:5px; }
 
 </style>
 </head>
@@ -688,7 +689,8 @@
     createLeader: (p, id, name, gid, pw) => rpc('admin_create_leader', { p_passcode: p, p_employee_id: id, p_name: name, p_group_id: gid, p_password: pw }),
     resetPassword: (p, id, pw) => rpc('admin_reset_password', { p_passcode: p, p_employee_id: id, p_password: pw }),
     moveMember: (p, id, gid) => rpc('admin_move_member', { p_passcode: p, p_employee_id: id, p_new_group_id: gid }),
-    removeUser: (p, id) => rpc('admin_remove_user', { p_passcode: p, p_employee_id: id })
+    removeUser: (p, id) => rpc('admin_remove_user', { p_passcode: p, p_employee_id: id }),
+    changePassword: (t, cur, nw) => rpc('change_my_password', { p_token: t, p_current: cur, p_new: nw })
   };
 
   if ('serviceWorker' in navigator) {
@@ -1064,7 +1066,32 @@
         : '<div class="empty-state">No members in your group yet.</div>') +
       (state.profile.role === 'member'
         ? '<div class="readonly-note">📋 Your group leader records everyone\'s kilometres. Pass your runs to them each week.</div>'
-        : '');
+        : '') +
+      '<div class="admin-section" style="margin-top:26px;"><h4>Change your password</h4>' +
+      '<div class="admin-config-grid">' +
+      '<div class="field"><label>Current password</label><input id="cp-cur" type="password" autocomplete="current-password" /></div>' +
+      '<div class="field"><label>New password</label><input id="cp-new" type="password" placeholder="min 6 characters" autocomplete="new-password" /></div></div>' +
+      '<button class="submit-btn" id="cp-save" style="max-width:220px;margin-top:12px;">Update password</button>' +
+      '<div id="cp-status"></div></div>';
+
+    p.querySelector('#cp-save').addEventListener('click', async function () {
+      const cur = p.querySelector('#cp-cur').value, nw = p.querySelector('#cp-new').value;
+      const st = p.querySelector('#cp-status'), btn = p.querySelector('#cp-save');
+      if (!cur || !nw) { st.innerHTML = '<div class="error-msg">Fill in both fields.</div>'; return; }
+      if (nw.length < 6) { st.innerHTML = '<div class="error-msg">New password must be at least 6 characters.</div>'; return; }
+      btn.disabled = true; btn.textContent = 'Updating…';
+      try {
+        const r = await api.changePassword(state.token, cur, nw);
+        if (r && r.success) {
+          st.innerHTML = '<div class="confirm-msg">Password updated.</div>';
+          p.querySelector('#cp-cur').value = ''; p.querySelector('#cp-new').value = '';
+        } else {
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not update.') + '</div>';
+        }
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
+      btn.disabled = false; btn.textContent = 'Update password';
+    });
+
     startCd(s);
   }
 
@@ -1196,7 +1223,7 @@
       '<div class="field"><label>Group</label><select id="nl-group">' +
       d.groups.map(g => '<option value="' + g.id + '"' + (g.leader ? ' disabled' : '') + '>' + esc(g.name) +
         (g.leader ? ' — has ' + esc(g.leader) : '') + '</option>').join('') + '</select></div>' +
-      '<div class="field"><label>Initial password</label><input id="nl-pw" type="text" placeholder="min 6 characters" /></div></div>' +
+      '<div class="field"><label>Password (leave blank to auto-generate)</label><input id="nl-pw" type="text" placeholder="auto-generate" /></div></div>' +
       '<button class="submit-btn" id="nl-save" style="max-width:220px;margin-top:12px;">Create leader</button>' +
       '<div id="nl-status"></div>' +
       (noLeader.length ? '<div class="section-hint" style="margin-top:10px;">Still without a leader: ' +
@@ -1209,10 +1236,14 @@
       '</table></div></div>' +
 
       '<div class="admin-section"><h4>All users (' + d.users.length + ')</h4><div class="table-wrap"><table class="admin-table">' +
-      '<tr><th>ID</th><th>Name</th><th>Role</th><th>Group</th><th>Login</th></tr>' +
+      '<tr><th>ID</th><th>Name</th><th>Role</th><th>Group</th><th>Start password</th></tr>' +
       d.users.map(u => '<tr><td class="mono">' + esc(u.employeeId) + '</td><td>' + esc(u.name) + '</td><td>' +
         (u.role === 'leader' ? '<strong>Leader</strong>' : 'Member') + '</td><td>' + esc(u.groupName || '—') + '</td><td>' +
-        (u.hasPassword ? '✓' : 'pending') + '</td></tr>').join('') + '</table></div></div>' +
+        (u.startPassword
+          ? '<code class="pw-chip">' + esc(u.startPassword) + '</code>'
+          : (u.hasPassword ? '<span style="color:#1F9C8C">own password set</span>' : '<span style="color:#8A6110">not signed in yet</span>')) +
+        '</td></tr>').join('') + '</table></div>' +
+      '<p class="section-hint" style="margin-top:8px;">Starting passwords show until the person sets their own. After that they are private — use Reset below.</p></div>' +
 
       '<div class="admin-section"><h4>Move a member to another group</h4>' +
       '<p class="section-hint">Their logged kilometres move with them. Leaders cannot be moved — remove or replace them instead.</p>' +
@@ -1234,7 +1265,7 @@
 
       '<div class="admin-section"><h4>Reset a password</h4><div class="admin-config-grid">' +
       '<div class="field"><label>Employee ID</label><input id="rp-id" type="text" placeholder="BRCM10234" /></div>' +
-      '<div class="field"><label>New password</label><input id="rp-pw" type="text" placeholder="min 6 characters" /></div></div>' +
+      '<div class="field"><label>New password (blank = auto-generate)</label><input id="rp-pw" type="text" placeholder="auto-generate" /></div></div>' +
       '<button class="submit-btn" id="rp-save" style="max-width:220px;margin-top:12px;">Reset password</button>' +
       '<div id="rp-status"></div></div>' +
 
@@ -1248,10 +1279,11 @@
           p.querySelector('#nl-name').value.trim(), Number(p.querySelector('#nl-group').value),
           p.querySelector('#nl-pw').value);
         if (r && r.success) {
+          const msg = esc(r.message || 'Leader created.');
           state.adminData = await api.adminData(pass);
           renderAdmin(p);
           const s2 = p.querySelector('#nl-status');
-          if (s2) s2.innerHTML = '<div class="confirm-msg">Leader created. Give them their ID and password.</div>';
+          if (s2) s2.innerHTML = '<div class="confirm-msg">✅ ' + msg + '<br><small>Copy this now — send it to them.</small></div>';
         } else {
           st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
           btn.disabled = false; btn.textContent = 'Create leader';
@@ -1267,9 +1299,16 @@
       const btn = p.querySelector('#rp-save'); btn.disabled = true; btn.textContent = 'Resetting…';
       try {
         const r = await api.resetPassword(pass, p.querySelector('#rp-id').value.trim(), p.querySelector('#rp-pw').value);
-        st.innerHTML = (r && r.success)
-          ? '<div class="confirm-msg">Password reset — they will need to sign in again.</div>'
-          : '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+        if (r && r.success) {
+          const pass2 = sessionStorage.getItem(ADMIN_KEY);
+          const msg = esc(r.message || 'Password reset.');
+          state.adminData = await api.adminData(pass2);
+          renderAdmin(p);
+          const s3 = p.querySelector('#rp-status');
+          if (s3) s3.innerHTML = '<div class="confirm-msg">✅ ' + msg + '<br><small>They are signed out everywhere until they use it.</small></div>';
+          return;
+        }
+        st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
       } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
       btn.disabled = false; btn.textContent = 'Reset password';
     });
