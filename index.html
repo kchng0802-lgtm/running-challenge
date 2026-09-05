@@ -579,6 +579,34 @@
 
   /* ---------- Target note ---------- */
   .target-note { margin-top: 10px; font-size: 13px; color: var(--ink); line-height: 1.45; }
+
+  /* ---------- Top runners podium ---------- */
+  .podium-card { background: linear-gradient(180deg,#F4FBFA,var(--white)); border:1px solid #CBE8E2; border-radius:14px; padding:14px 16px; margin-bottom:20px; }
+  .podium-title { font-size:11.5px; font-weight:700; color:var(--ink); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:10px; }
+  .tr-row { display:flex; align-items:center; gap:11px; padding:9px 0; border-bottom:1px solid rgba(0,0,0,0.05); }
+  .tr-row:last-child { border-bottom:none; }
+  .tr-medal { font-size:19px; width:24px; text-align:center; flex-shrink:0; }
+  .tr-avatar { width:34px; height:34px; border-radius:50%; background:var(--teal); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11.5px; flex-shrink:0; }
+  .tr-body { flex:1; min-width:0; }
+  .tr-name { font-weight:700; font-size:13.5px; color:var(--ink); }
+  .tr-group { font-size:11px; color:var(--ink-soft); margin-top:1px; }
+  .tr-km { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; color:var(--ink); flex-shrink:0; }
+  .tr-km span { font-size:9.5px; color:var(--ink-soft); margin-left:2px; }
+
+  /* ---------- Today's leader ---------- */
+  .today-card { background:var(--gold-light); border:1px solid #F0DBA6; border-radius:14px; padding:14px 16px; margin-bottom:20px; }
+  .today-card.empty { background:var(--paper); border:1px dashed var(--line); text-align:center; color:var(--ink-soft); font-size:13px; }
+  .today-label { font-size:11.5px; font-weight:700; color:#8A6110; text-transform:uppercase; letter-spacing:0.08em; }
+  .today-group { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; color:var(--navy); margin-top:4px; }
+  .today-km { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+
+  /* ---------- Misc ---------- */
+  .lead-tag { font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:0.06em; background:var(--navy); color:#fff; padding:2px 5px; border-radius:3px; vertical-align:1px; }
+  .readonly-note { margin-top:22px; padding:13px 15px; background:var(--teal-light); border:1px solid #BEE6DF; border-radius:11px; font-size:13px; color:#146B5F; line-height:1.5; }
+  .section-hint { font-size:12.5px; color:var(--ink-soft); margin:-4px 0 12px; line-height:1.45; }
+  .field select, .field-dark select { font-family:'Inter',sans-serif; font-size:14.5px; padding:11px 13px; border:1.5px solid var(--line); border-radius:9px; color:var(--ink); background:var(--paper); width:100%; }
+  .group-km .u { font-size:9px; }
+
 </style>
 </head>
 <body>
@@ -589,440 +617,345 @@
 <script>
 (function () {
   // ============ SUPABASE CONNECTION ============
-  // Safe to expose: the publishable key only permits what Row Level
-  // Security allows (read the board, register, log a run). The admin
-  // passcode is verified inside the database and never sent here.
   const SUPABASE_URL = 'https://aqkxtssiivmjrnoghxta.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_BZziH98VbogU_zYgukbQyg_rybCODGm';
   // ==============================================
 
   const root = document.getElementById('app-root');
-  const PROFILE_KEY = 'runChallengeProfileV3';
+  const TOKEN_KEY = 'runChallengeToken';
   const ADMIN_KEY = 'runChallengeAdminPass';
 
-  function loadProfile() { try { const r = localStorage.getItem(PROFILE_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
-  function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
-  function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
+  const saveToken = t => localStorage.setItem(TOKEN_KEY, t);
+  const getToken = () => localStorage.getItem(TOKEN_KEY);
+  const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
   let state = {
-    view: 'landing',        // landing | summary | register | welcome | app
-    appTab: 'dashboard',    // dashboard | leaderboard | admin
-    profile: loadProfile(),
-    registerDraft: null,    // { employeeId, name, groupId }
-    groupStats: null,
-    availableGroups: [],
-    expandedGroupId: null,
-    heroKm: 0,
+    view: 'login',
+    appTab: 'dashboard',
+    token: getToken(),
+    profile: null,
+    pendingAccount: null,
+    standings: null,
+    myGroup: null,
     adminData: null,
-    formStatus: null,
+    expandedGroupId: null,
     loading: false
   };
 
-  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
-  function initials(name) {
-    const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  function initials(n) {
+    const p = String(n || '').trim().split(/\s+/).filter(Boolean);
     if (!p.length) return '??';
-    if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-    return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+    return p.length === 1 ? p[0].slice(0,2).toUpperCase() : (p[0][0] + p[p.length-1][0]).toUpperCase();
   }
   function emblem(size) {
-    return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" class="emblem" aria-hidden="true">
-      <circle cx="50" cy="50" r="45" fill="#0B2A4A"/>
-      <circle cx="50" cy="50" r="45" fill="none" stroke="#E3A62F" stroke-width="4"/>
-      <circle cx="44" cy="30" r="9" fill="#1F9C8C"/>
-      <path d="M44 40 L60 48 L50 56 L64 76 L54 80 L40 60 L28 68 L22 58 L38 48 Z" fill="#1F9C8C"/>
-    </svg>`;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 100 100" class="emblem" aria-hidden="true">' +
+      '<circle cx="50" cy="50" r="45" fill="#0B2A4A"/>' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="#E3A62F" stroke-width="4"/>' +
+      '<circle cx="44" cy="30" r="9" fill="#1F9C8C"/>' +
+      '<path d="M44 40 L60 48 L50 56 L64 76 L54 80 L40 60 L28 68 L22 58 L38 48 Z" fill="#1F9C8C"/></svg>';
   }
 
   // ---------- Supabase ----------
-  async function sbFetch(path, options) {
-    const opts = options || {};
-    const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-      method: opts.method || 'GET',
-      headers: Object.assign({
+  async function rpc(fn, args) {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': 'Bearer ' + SUPABASE_KEY,
         'Content-Type': 'application/json'
-      }, opts.headers || {}),
-      body: opts.body ? JSON.stringify(opts.body) : undefined
+      },
+      body: JSON.stringify(args || {})
     });
-    if (!res.ok) throw new Error('Request failed (' + res.status + '): ' + await res.text());
+    if (!res.ok) throw new Error('Request failed (' + res.status + ')');
     const t = await res.text();
     return t ? JSON.parse(t) : null;
   }
-  function sbRpc(fn, args) { return sbFetch('rpc/' + fn, { method: 'POST', body: args || {} }); }
 
-  function lookupEmployee(id) { return sbRpc('lookup_employee', { p_employee_id: id }); }
-  function loadAvailableGroups() { return sbRpc('available_groups', {}); }
-  function registerEmployee(id, name, groupId) { return sbRpc('register_employee', { p_employee_id: id, p_name: name, p_group_id: groupId }); }
-  function loadGroupStats() { return sbRpc('group_stats', {}); }
-  function loadAdmin(pass) { return sbRpc('admin_data', { p_passcode: pass }); }
-  function renameGroup(pass, id, name) { return sbRpc('rename_group', { p_passcode: pass, p_group_id: id, p_new_name: name }); }
-  function saveConfig(pass, cfg) {
-    return sbRpc('update_config', {
-      p_passcode: pass, p_title: cfg.title,
-      p_start_date: cfg.startDate || null, p_end_date: cfg.endDate || null,
-      p_per_person_target_km: Number(cfg.perPersonTargetKm) || null,
-      p_max_group_size: Number(cfg.maxGroupSize) || null
-    });
-  }
-  async function logRun(id, date, km, minutes) {
-    await sbFetch('entries', {
-      method: 'POST', headers: { 'Prefer': 'return=minimal' },
-      body: { employee_id: id, run_date: date, distance_km: km, minutes: minutes }
-    });
-    return { success: true };
-  }
+  const api = {
+    checkAccount: id => rpc('check_account', { p_employee_id: id }),
+    setInitialPassword: (id, pw) => rpc('set_initial_password', { p_employee_id: id, p_password: pw }),
+    login: (id, pw) => rpc('login', { p_employee_id: id, p_password: pw }),
+    logout: t => rpc('logout', { p_token: t }),
+    whoami: t => rpc('whoami', { p_token: t }),
+    standings: () => rpc('standings', {}),
+    myGroup: t => rpc('my_group', { p_token: t }),
+    addMember: (t, id, name) => rpc('leader_add_member', { p_token: t, p_employee_id: id, p_name: name }),
+    logRun: (t, mid, date, km, mins) => rpc('leader_log_run', { p_token: t, p_member_id: mid, p_date: date, p_km: km, p_minutes: mins }),
+    deleteEntry: (t, eid) => rpc('leader_delete_entry', { p_token: t, p_entry_id: eid }),
+    adminData: p => rpc('admin_data', { p_passcode: p }),
+    createLeader: (p, id, name, gid, pw) => rpc('admin_create_leader', { p_passcode: p, p_employee_id: id, p_name: name, p_group_id: gid, p_password: pw }),
+    resetPassword: (p, id, pw) => rpc('admin_reset_password', { p_passcode: p, p_employee_id: id, p_password: pw })
+  };
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
+    window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
   }
 
   // ---------- Countdown ----------
-  let countdownTimer = null;
-  function clearCountdown() { if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; } }
-  function pad2(n) { return String(n).padStart(2, '0'); }
+  let cdTimer = null;
+  const clearCd = () => { if (cdTimer) { clearInterval(cdTimer); cdTimer = null; } };
+  const pad2 = n => String(n).padStart(2, '0');
 
-  function computeCountdown(cfg) {
-    if (!cfg || !cfg.endDate) return null;
-    const end = new Date(cfg.endDate + 'T23:59:59');
-    if (isNaN(end.getTime())) return null;
-    const start = cfg.startDate ? new Date(cfg.startDate + 'T00:00:00') : null;
-    const now = new Date();
-    const ms = end - now;
+  function computeCd(s) {
+    if (!s || !s.endDate) return null;
+    const end = new Date(s.endDate + 'T23:59:59');
+    const start = s.startDate ? new Date(s.startDate + 'T00:00:00') : null;
+    const now = new Date(), ms = end - now;
+    const fmt = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+    if (start && now < start) return { notStarted: true, startLabel: fmt(start), endLabel: fmt(end), pct: 0 };
     let pct = 0;
-    if (start && !isNaN(start.getTime())) {
-      const total = end - start;
-      pct = total > 0 ? Math.max(0, Math.min(100, ((now - start) / total) * 100)) : 0;
-    }
-    const label = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    if (ms <= 0) return { ended: true, pct: 100, endLabel: label };
-    return {
-      ended: false, pct, endLabel: label,
-      days: Math.floor(ms / 86400000),
-      hours: Math.floor((ms % 86400000) / 3600000),
-      mins: Math.floor((ms % 3600000) / 60000),
-      secs: Math.floor((ms % 60000) / 1000)
-    };
+    if (start) { const tot = end - start; pct = tot > 0 ? Math.max(0, Math.min(100, ((now - start) / tot) * 100)) : 0; }
+    if (ms <= 0) return { ended: true, pct: 100, endLabel: fmt(end) };
+    return { ended: false, pct: pct, endLabel: fmt(end),
+      days: Math.floor(ms/86400000), hours: Math.floor((ms%86400000)/3600000),
+      mins: Math.floor((ms%3600000)/60000), secs: Math.floor((ms%60000)/1000) };
   }
 
-  function renderCountdownHtml(cd) {
+  function cdHtml(cd) {
     if (!cd) return '';
-    if (cd.ended) {
-      return `<div class="countdown-card">
-        <div class="countdown-top"><span class="countdown-label">Challenge Complete</span><span class="countdown-ends">Ended ${escapeHtml(cd.endLabel)}</span></div>
-        <div class="countdown-ended">🏁 Final results are in</div>
-        <div class="cd-progress-track"><div class="cd-progress-fill" style="width:100%"></div></div>
-      </div>`;
+    if (cd.notStarted) {
+      return '<div class="countdown-card"><div class="countdown-top"><span class="countdown-label">Starts Soon</span>' +
+        '<span class="countdown-ends">Ends ' + esc(cd.endLabel) + '</span></div>' +
+        '<div class="countdown-ended">🗓️ Challenge begins ' + esc(cd.startLabel) + '</div></div>';
     }
-    return `<div class="countdown-card">
-      <div class="countdown-top"><span class="countdown-label">Time Remaining</span><span class="countdown-ends">Ends ${escapeHtml(cd.endLabel)}</span></div>
-      <div class="countdown-units">
-        <div class="cd-unit"><div class="v" id="cd-days">${cd.days}</div><div class="l">Days</div></div>
-        <div class="cd-unit"><div class="v" id="cd-hours">${pad2(cd.hours)}</div><div class="l">Hours</div></div>
-        <div class="cd-unit"><div class="v" id="cd-mins">${pad2(cd.mins)}</div><div class="l">Mins</div></div>
-        <div class="cd-unit"><div class="v" id="cd-secs">${pad2(cd.secs)}</div><div class="l">Secs</div></div>
-      </div>
-      <div class="cd-progress-track">
-        <div class="cd-progress-fill" id="cd-fill" style="width:${cd.pct}%"></div>
-        <div class="cd-progress-dot" id="cd-dot" style="left:${cd.pct}%"></div>
-      </div>
-    </div>`;
+    if (cd.ended) {
+      return '<div class="countdown-card"><div class="countdown-top"><span class="countdown-label">Challenge Complete</span>' +
+        '<span class="countdown-ends">Ended ' + esc(cd.endLabel) + '</span></div>' +
+        '<div class="countdown-ended">🏁 Final results are in</div>' +
+        '<div class="cd-progress-track"><div class="cd-progress-fill" style="width:100%"></div></div></div>';
+    }
+    return '<div class="countdown-card"><div class="countdown-top"><span class="countdown-label">Time Remaining</span>' +
+      '<span class="countdown-ends">Ends ' + esc(cd.endLabel) + '</span></div><div class="countdown-units">' +
+      '<div class="cd-unit"><div class="v" id="cd-d">' + cd.days + '</div><div class="l">Days</div></div>' +
+      '<div class="cd-unit"><div class="v" id="cd-h">' + pad2(cd.hours) + '</div><div class="l">Hours</div></div>' +
+      '<div class="cd-unit"><div class="v" id="cd-m">' + pad2(cd.mins) + '</div><div class="l">Mins</div></div>' +
+      '<div class="cd-unit"><div class="v" id="cd-s">' + pad2(cd.secs) + '</div><div class="l">Secs</div></div></div>' +
+      '<div class="cd-progress-track"><div class="cd-progress-fill" id="cd-fill" style="width:' + cd.pct + '%"></div>' +
+      '<div class="cd-progress-dot" id="cd-dot" style="left:' + cd.pct + '%"></div></div></div>';
   }
 
-  function startCountdown(cfg) {
-    clearCountdown();
-    if (!cfg || !cfg.endDate) return;
-    countdownTimer = setInterval(() => {
-      const cd = computeCountdown(cfg);
-      const el = document.getElementById('cd-days');
-      if (!el || !cd) { clearCountdown(); return; }
-      if (cd.ended) { clearCountdown(); goToTab(state.appTab); return; }
+  function startCd(s) {
+    clearCd();
+    if (!s || !s.endDate) return;
+    cdTimer = setInterval(function () {
+      const cd = computeCd(s), el = document.getElementById('cd-d');
+      if (!el || !cd || cd.ended || cd.notStarted) { clearCd(); return; }
       el.textContent = cd.days;
-      document.getElementById('cd-hours').textContent = pad2(cd.hours);
-      document.getElementById('cd-mins').textContent = pad2(cd.mins);
-      document.getElementById('cd-secs').textContent = pad2(cd.secs);
+      document.getElementById('cd-h').textContent = pad2(cd.hours);
+      document.getElementById('cd-m').textContent = pad2(cd.mins);
+      document.getElementById('cd-s').textContent = pad2(cd.secs);
       const f = document.getElementById('cd-fill'), d = document.getElementById('cd-dot');
       if (f) f.style.width = cd.pct + '%';
       if (d) d.style.left = cd.pct + '%';
     }, 1000);
   }
 
-  function animateCount(el, to, duration) {
-    const start = performance.now(), isDec = to % 1 !== 0;
-    function tick(now) {
-      const p = Math.min(1, (now - start) / duration);
-      const v = to * (1 - Math.pow(1 - p, 3));
-      el.textContent = isDec ? v.toFixed(1) : Math.round(v).toLocaleString();
-      if (p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
-
-  // ---------- Bootstrapping ----------
+  // ---------- Boot ----------
   async function init() {
-    if (state.profile) {
+    if (state.token) {
       try {
-        const r = await lookupEmployee(state.profile.employeeId);
-        if (r && r.found) { state.profile = r.employee; saveProfile(r.employee); }
-        else { clearProfile(); state.profile = null; state.view = 'landing'; render(); return; }
-      } catch (e) { /* offline: keep cached profile */ }
-      state.view = 'app';
-      await goToTab('dashboard');
-    } else {
-      render();
+        const r = await api.whoami(state.token);
+        if (r && r.valid) { state.profile = r.profile; state.view = 'app'; return goToTab('dashboard'); }
+      } catch (e) {}
+      clearToken(); state.token = null;
     }
+    render();
   }
 
   async function goToTab(tab) {
-    clearCountdown();
+    clearCd();
     state.appTab = tab;
     state.loading = true;
     render();
     try {
-      state.groupStats = await loadGroupStats();
-      state.heroKm = state.groupStats.companyKm;
-    } catch (e) { state.groupStats = null; }
+      state.standings = await api.standings();
+      if (tab === 'manage' && state.token) state.myGroup = await api.myGroup(state.token);
+    } catch (e) { state.standings = null; }
     state.loading = false;
     render();
   }
 
-  // ---------- Render root ----------
   function render() {
-    if (state.view === 'landing') return renderLanding();
-    if (state.view === 'summary') return renderSummary();
-    if (state.view === 'register') return renderRegister();
-    if (state.view === 'welcome') return renderWelcome();
+    if (state.view === 'login') return renderLogin();
+    if (state.view === 'setpw') return renderSetPassword();
+    if (state.view === 'standings') return renderPublicStandings();
     return renderApp();
   }
 
-  // ---------- Landing ----------
-  function renderLanding() {
+  // ---------- Login ----------
+  function renderLogin() {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const runner = reduce ? '' : `<circle r="5" fill="#38C6B3"><animateMotion dur="7s" repeatCount="indefinite" path="M170,30 A150,55 0 1 1 169,30 Z" /></circle>`;
+    const runner = reduce ? '' : '<circle r="5" fill="#38C6B3"><animateMotion dur="7s" repeatCount="indefinite" path="M170,30 A150,55 0 1 1 169,30 Z" /></circle>';
 
-    root.innerHTML = `
-      <div class="landing-dark">
-        <div class="ambient-glow"></div>
-        <div class="ambient-glow-2"></div>
-        <div class="bg-track" style="top:20%;opacity:0.35;">
-          <svg viewBox="0 0 340 110" class="bg-track-svg" aria-hidden="true">
-            <ellipse cx="170" cy="55" rx="150" ry="45" fill="none" stroke="rgba(227,166,47,0.28)" stroke-width="2" stroke-dasharray="3 9" />
-            ${runner}
-          </svg>
-        </div>
-        <div class="landing-content">
-          <div class="brand-row landing-fade d1">
-            <div class="logo-tile">${emblem(30)}</div>
-            <div class="brand-name">Broadcom Run 2026</div>
-          </div>
-          <div class="hero-eyebrow landing-fade d2">One Team • One Challenge</div>
-          <h1 class="hero-headline landing-fade d2">Every kilometre <span class="accent-grad">moves your group forward.</span></h1>
-          <p class="sub-dark landing-fade d3">Join a group, log your runs, and push your team up the leaderboard together.</p>
-          <p class="hero-footnote landing-fade d3">Corporate Wellness Challenge • Internal Use</p>
-          <div class="landing-fade d3" id="ticker-slot"></div>
+    root.innerHTML =
+      '<div class="landing-dark"><div class="ambient-glow"></div><div class="ambient-glow-2"></div>' +
+      '<div class="bg-track" style="top:20%;opacity:0.35;"><svg viewBox="0 0 340 110" class="bg-track-svg" aria-hidden="true">' +
+      '<ellipse cx="170" cy="55" rx="150" ry="45" fill="none" stroke="rgba(227,166,47,0.28)" stroke-width="2" stroke-dasharray="3 9" />' + runner + '</svg></div>' +
+      '<div class="landing-content">' +
+      '<div class="brand-row landing-fade d1"><div class="logo-tile">' + emblem(30) + '</div><div class="brand-name">Broadcom Run 2026</div></div>' +
+      '<div class="hero-eyebrow landing-fade d2">15 Sep — 15 Oct • 50 km each</div>' +
+      '<h1 class="hero-headline landing-fade d2">Every kilometre <span class="accent-grad">moves your group forward.</span></h1>' +
+      '<p class="sub-dark landing-fade d3">Ten groups. Ten runners each. 500 km per group to finish the month.</p>' +
+      '<p class="hero-footnote landing-fade d3">Corporate Wellness Challenge • Internal Use</p>' +
+      '<div class="landing-fade d3" id="ticker-slot"></div>' +
+      '<div class="quickstart-card landing-fade d4"><div class="card-top-bar"></div>' +
+      '<div class="badge-row"><span class="pill-live"><span class="pulse-dot"></span>LIVE CHALLENGE</span>' +
+      '<span class="secure-tag">🔒 Employees only</span></div>' +
+      '<div class="card-heading">Sign in</div>' +
+      '<div class="card-sub">First time here? Enter your Employee ID and we\'ll help you set a password.</div>' +
+      '<div class="field-dark"><label for="l-id">Employee ID</label><div class="input-wrap">' +
+      '<input id="l-id" type="text" placeholder="e.g. BRCM10234" autocomplete="username" /><span class="input-icon">👤</span></div></div>' +
+      '<div class="field-dark"><label for="l-pw">Password</label><div class="input-wrap">' +
+      '<input id="l-pw" type="password" placeholder="Your password" autocomplete="current-password" /><span class="input-icon">🔒</span></div></div>' +
+      '<button class="cta-gradient" id="l-btn">Sign in →</button><div id="l-status"></div></div>' +
+      '<button class="link-btn-dark landing-fade d5" id="pub-btn">View standings without signing in</button>' +
+      '</div></div>';
 
-          <div class="quickstart-card landing-fade d4">
-            <div class="card-top-bar"></div>
-            <div class="badge-row">
-              <span class="pill-live"><span class="pulse-dot"></span>LIVE CHALLENGE</span>
-              <span class="secure-tag">🔒 Employees only</span>
-            </div>
-            <div class="step-indicator"><div class="step-seg active"></div><div class="step-seg"></div><div class="step-seg"></div></div>
-            <div class="card-heading">Welcome back 👋</div>
-            <div class="card-sub">Log in with your Employee ID to enter the challenge.</div>
-            <div class="field-dark">
-              <label for="login-id">Employee ID</label>
-              <div class="input-wrap">
-                <input id="login-id" type="text" placeholder="e.g. BRCM10234" autocomplete="off" />
-                <span class="input-icon">👤</span>
-              </div>
-            </div>
-            <button class="cta-gradient" id="login-btn">Enter the Challenge →</button>
-            <div id="login-status"></div>
-          </div>
+    const doLogin = async function () {
+      const id = root.querySelector('#l-id').value.trim();
+      const pw = root.querySelector('#l-pw').value;
+      const st = root.querySelector('#l-status');
+      const btn = root.querySelector('#l-btn');
+      if (!id) { st.innerHTML = '<div class="error-msg">Please enter your Employee ID.</div>'; return; }
+      btn.disabled = true; btn.textContent = 'Checking…';
+      try {
+        const acct = await api.checkAccount(id);
+        if (acct && acct.exists && acct.needsPassword) {
+          state.pendingAccount = { employeeId: id, name: acct.name };
+          state.view = 'setpw'; render(); return;
+        }
+        if (!pw) {
+          st.innerHTML = '<div class="error-msg">Please enter your password.</div>';
+          btn.disabled = false; btn.textContent = 'Sign in →'; return;
+        }
+        const r = await api.login(id, pw);
+        if (r && r.success) {
+          state.token = r.token; saveToken(r.token); state.profile = r.profile;
+          state.view = 'app'; await goToTab('dashboard');
+        } else {
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Sign in failed.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Sign in →';
+        }
+      } catch (e) {
+        st.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
+        btn.disabled = false; btn.textContent = 'Sign in →';
+      }
+    };
 
-          <button class="link-btn-dark landing-fade d5" id="summary-btn">View group standings instead</button>
-        </div>
-      </div>`;
+    root.querySelector('#l-btn').addEventListener('click', doLogin);
+    root.querySelector('#l-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    root.querySelector('#l-id').addEventListener('keydown', e => { if (e.key === 'Enter') root.querySelector('#l-pw').focus(); });
 
-    root.querySelector('#summary-btn').addEventListener('click', async () => {
-      state.view = 'summary'; state.loading = true; render();
-      try { state.groupStats = await loadGroupStats(); } catch (e) { state.groupStats = null; }
+    root.querySelector('#pub-btn').addEventListener('click', async function () {
+      state.view = 'standings'; state.loading = true; render();
+      try { state.standings = await api.standings(); } catch (e) { state.standings = null; }
       state.loading = false; render();
     });
 
-    root.querySelector('#login-btn').addEventListener('click', doLogin);
-    root.querySelector('#login-id').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-    async function doLogin() {
-      const id = root.querySelector('#login-id').value.trim();
-      const statusEl = root.querySelector('#login-status');
-      if (!id) { statusEl.innerHTML = '<div class="error-msg">Please enter your Employee ID.</div>'; return; }
-      const btn = root.querySelector('#login-btn');
-      btn.disabled = true; btn.textContent = 'Checking…';
-      try {
-        const r = await lookupEmployee(id);
-        if (r && r.found) {
-          state.profile = r.employee; saveProfile(r.employee);
-          state.view = 'app'; await goToTab('dashboard');
-        } else {
-          state.registerDraft = { employeeId: id, name: '', groupId: null };
-          state.availableGroups = await loadAvailableGroups();
-          state.view = 'register'; render();
-        }
-      } catch (e) {
-        statusEl.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
-        btn.disabled = false; btn.textContent = 'Enter the Challenge →';
-      }
-    }
-
-    loadGroupStats().then(s => {
+    api.standings().then(function (s) {
       const slot = document.getElementById('ticker-slot');
       if (!slot || !s) return;
-      slot.innerHTML = `<div class="live-ticker"><span class="dot"></span>
-        <span><span class="num" id="tk-km">0</span> km logged</span>
-        <span style="opacity:0.5;">·</span>
-        <span><span class="num" id="tk-people">0</span> runners</span></div>`;
-      animateCount(document.getElementById('tk-km'), s.companyKm, 900);
-      animateCount(document.getElementById('tk-people'), s.totalRunners, 900);
-    }).catch(() => {});
+      slot.innerHTML = '<div class="live-ticker"><span class="dot"></span><span><span class="num">' +
+        s.companyKm.toFixed(1) + '</span> km logged</span><span style="opacity:0.5;">·</span>' +
+        '<span><span class="num">' + s.totalRunners + '</span> runners</span></div>';
+    }).catch(function () {});
   }
 
-  // ---------- Register ----------
-  function renderRegister() {
-    const d = state.registerDraft;
-    const groups = state.availableGroups || [];
-    root.innerHTML = `
-      <div class="reg-screen">
-        <div class="success-tile">✓</div>
-        <div class="id-chip"><span class="lbl">Employee</span> ${escapeHtml(d.employeeId)}</div>
-        <h1 class="reg-h1">You're in.</h1>
-        <p class="reg-sub">Tell us your name and pick the group you want to run with.</p>
+  // ---------- First-time password ----------
+  function renderSetPassword() {
+    const a = state.pendingAccount;
+    root.innerHTML =
+      '<div class="reg-screen"><div class="success-tile">🔑</div>' +
+      '<div class="id-chip"><span class="lbl">Employee</span> ' + esc(a.employeeId) + '</div>' +
+      '<h1 class="reg-h1">Welcome, ' + esc(a.name.split(' ')[0]) + '.</h1>' +
+      '<p class="reg-sub">Your group leader has added you. Choose a password to finish setting up your account.</p>' +
+      '<div class="field"><label for="p1">Create password</label><input id="p1" type="password" placeholder="At least 6 characters" autocomplete="new-password" /></div>' +
+      '<div class="field"><label for="p2">Confirm password</label><input id="p2" type="password" placeholder="Type it again" autocomplete="new-password" /></div>' +
+      '<button class="back-btn-wide" id="back">← Back</button>' +
+      '<button class="cta-gradient" id="save">Set password & continue →</button><div id="st"></div></div>';
 
-        <div class="field" style="margin-bottom:24px;">
-          <label for="reg-name">Your Name</label>
-          <input id="reg-name" type="text" placeholder="e.g. Kean Chye" value="${escapeHtml(d.name)}" />
-        </div>
-
-        <div class="section-label">Choose your group</div>
-        <div id="group-grid">
-          ${groups.map(g => `
-            <div class="cat-option ${d.groupId === g.id ? 'selected' : ''} ${g.isFull ? 'is-full' : ''}"
-                 data-gid="${g.id}" ${g.isFull ? '' : 'role="button" tabindex="0"'}>
-              <div class="cat-icon-tile">${g.isFull ? '🔒' : '👥'}</div>
-              <div class="cat-option-body">
-                <div class="cat-option-name">${escapeHtml(g.name)}</div>
-                <div class="cat-option-desc">${g.memberCount} / ${g.maxSize} members${g.isFull ? ' · full' : ''}</div>
-              </div>
-              <div class="cat-radio"></div>
-            </div>`).join('')}
-        </div>
-
-        <button class="back-btn-wide" id="back-btn">← Back</button>
-        <button class="cta-gradient" id="reg-btn">Join Challenge →</button>
-        <div id="reg-status"></div>
-      </div>`;
-
-    root.querySelector('#back-btn').addEventListener('click', () => { state.view = 'landing'; render(); });
-    root.querySelectorAll('.cat-option').forEach(card => {
-      if (card.classList.contains('is-full')) return;
-      card.addEventListener('click', () => {
-        state.registerDraft.name = root.querySelector('#reg-name').value;
-        state.registerDraft.groupId = Number(card.dataset.gid);
-        render();
-      });
-    });
-
-    root.querySelector('#reg-btn').addEventListener('click', async () => {
-      const name = root.querySelector('#reg-name').value.trim();
-      const statusEl = root.querySelector('#reg-status');
-      if (!name) { statusEl.innerHTML = '<div class="error-msg">Please enter your name.</div>'; return; }
-      if (!state.registerDraft.groupId) { statusEl.innerHTML = '<div class="error-msg">Please pick a group.</div>'; return; }
-
-      const btn = root.querySelector('#reg-btn');
-      btn.disabled = true; btn.textContent = 'Joining…';
+    root.querySelector('#back').addEventListener('click', () => { state.view = 'login'; render(); });
+    root.querySelector('#save').addEventListener('click', async function () {
+      const p1 = root.querySelector('#p1').value, p2 = root.querySelector('#p2').value;
+      const st = root.querySelector('#st'), btn = root.querySelector('#save');
+      if (p1.length < 6) { st.innerHTML = '<div class="error-msg">Password must be at least 6 characters.</div>'; return; }
+      if (p1 !== p2) { st.innerHTML = '<div class="error-msg">Those passwords do not match.</div>'; return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        const res = await registerEmployee(state.registerDraft.employeeId, name, state.registerDraft.groupId);
-        if (res && res.success === false) {
-          statusEl.innerHTML = '<div class="error-msg">' + escapeHtml(res.error) + '</div>';
-          state.availableGroups = await loadAvailableGroups();
-          btn.disabled = false; btn.textContent = 'Join Challenge →';
-          render();
-          return;
-        }
-        const look = await lookupEmployee(state.registerDraft.employeeId);
-        if (look && look.found) {
-          state.profile = look.employee; saveProfile(look.employee);
-          state.view = 'welcome'; render();
+        const r = await api.setInitialPassword(a.employeeId, p1);
+        if (r && r.success) {
+          state.token = r.token; saveToken(r.token); state.profile = r.profile;
+          state.pendingAccount = null; state.view = 'app'; await goToTab('dashboard');
         } else {
-          statusEl.innerHTML = '<div class="error-msg">Registration did not save — please try again.</div>';
-          btn.disabled = false; btn.textContent = 'Join Challenge →';
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not set password.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Set password & continue →';
         }
       } catch (e) {
-        statusEl.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
-        btn.disabled = false; btn.textContent = 'Join Challenge →';
+        st.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
+        btn.disabled = false; btn.textContent = 'Set password & continue →';
       }
     });
   }
 
-  // ---------- Welcome ----------
-  function renderWelcome() {
-    const p = state.profile;
-    root.innerHTML = `
-      <div class="welcome-screen">
-        <div class="welcome-check-wrap"><div class="welcome-check-halo"></div><div class="welcome-check">✓</div></div>
-        <h1 class="welcome-h1">Welcome to the challenge!</h1>
-        <p class="welcome-sub"><strong>${escapeHtml(p.name)}</strong> has joined <strong>${escapeHtml(p.groupName)}</strong>.<br />Your running dashboard is ready.</p>
-        <button class="cta-gradient" id="go-btn">Open Running Dashboard →</button>
-        <button class="welcome-alt" id="switch-btn">Use another Employee ID</button>
-      </div>`;
-    root.querySelector('#go-btn').addEventListener('click', async () => { state.view = 'app'; await goToTab('dashboard'); });
-    root.querySelector('#switch-btn').addEventListener('click', () => {
-      clearProfile(); state.profile = null; state.registerDraft = null; state.view = 'landing'; render();
-    });
+  // ---------- Shared blocks ----------
+  function topRunnersHtml(s) {
+    if (!s.topRunners || !s.topRunners.length) return '';
+    const medals = ['🥇','🥈','🥉'];
+    return '<div class="podium-card"><div class="podium-title">Top Runners</div>' +
+      s.topRunners.map(function (r, i) {
+        return '<div class="tr-row"><span class="tr-medal">' + medals[i] + '</span>' +
+          '<div class="tr-avatar">' + esc(initials(r.name)) + '</div>' +
+          '<div class="tr-body"><div class="tr-name">' + esc(r.name) + '</div>' +
+          '<div class="tr-group">' + esc(r.groupName || '') + '</div></div>' +
+          '<div class="tr-km">' + r.km.toFixed(1) + '<span>km</span></div></div>';
+      }).join('') + '</div>';
   }
 
-  // ---------- Shared: group leaderboard rows ----------
-  function renderGroupRows(groups, opts) {
-    const o = opts || {};
-    const myGroupId = state.profile ? state.profile.groupId : null;
-    const medals = ['🥇', '🥈', '🥉'];
-    return groups.map((g, i) => {
-      const isMine = g.id === myGroupId;
+  function todayCardHtml(s) {
+    if (!s.topToday) return '<div class="today-card empty">No runs logged today yet.</div>';
+    return '<div class="today-card"><div class="today-label">🔥 Leading today</div>' +
+      '<div class="today-group">' + esc(s.topToday.groupName) + '</div>' +
+      '<div class="today-km">' + s.topToday.km.toFixed(1) + ' km logged today</div></div>';
+  }
+
+  function memberRowHtml(m) {
+    const isMe = state.profile && m.employeeId === state.profile.employeeId;
+    return '<div class="member-row ' + (isMe ? 'is-me' : '') + '">' +
+      '<div class="member-avatar">' + esc(initials(m.name)) + '</div>' +
+      '<div class="member-body"><div class="member-name">' + esc(m.name) +
+      (m.role === 'leader' ? ' <span class="lead-tag">LEADER</span>' : '') +
+      (m.hitTarget ? ' <span class="target-tick">✓</span>' : '') + '</div>' +
+      '<div class="member-bar-track"><div class="member-bar-fill ' + (m.hitTarget ? 'done' : '') +
+      '" style="width:' + m.pct + '%"></div></div></div>' +
+      '<div class="member-km">' + m.km.toFixed(1) + '<span>km</span></div></div>';
+  }
+
+  function groupRowsHtml(s) {
+    const myId = state.profile ? state.profile.groupId : null;
+    const medals = ['🥇','🥈','🥉'];
+    return s.groups.map(function (g, i) {
+      const mine = g.id === myId;
       const pct = g.groupTargetKm > 0 ? Math.min(100, (g.totalKm / g.groupTargetKm) * 100) : 0;
-      const expanded = state.expandedGroupId === g.id;
-      return `
-        <div class="group-row ${isMine ? 'is-mine' : ''}" data-gid="${g.id}">
-          <div class="group-row-head">
-            <span class="group-rank">${i < 3 ? medals[i] : (i + 1)}</span>
-            <div class="group-main">
-              <div class="group-name">${escapeHtml(g.name)}${isMine ? '<span class="you-tag">YOUR GROUP</span>' : ''}</div>
-              <div class="group-meta">${g.memberCount} member${g.memberCount === 1 ? '' : 's'} · ${g.membersHitTarget}/${g.memberCount} hit target</div>
-              <div class="group-bar-track"><div class="group-bar-fill" style="width:${pct}%"></div></div>
-            </div>
-            <div class="group-km"><div class="v">${g.totalKm.toFixed(1)}</div><div class="u">km</div></div>
-          </div>
-          ${expanded ? `<div class="member-list">
-            ${g.members.length === 0 ? '<div class="member-empty">No members yet.</div>' :
-              g.members.map(m => `
-                <div class="member-row ${state.profile && m.employeeId === state.profile.employeeId ? 'is-me' : ''}">
-                  <div class="member-avatar">${escapeHtml(initials(m.name))}</div>
-                  <div class="member-body">
-                    <div class="member-name">${escapeHtml(m.name)} ${m.hitTarget ? '<span class="target-tick">✓</span>' : ''}</div>
-                    <div class="member-bar-track"><div class="member-bar-fill ${m.hitTarget ? 'done' : ''}" style="width:${m.pct}%"></div></div>
-                  </div>
-                  <div class="member-km">${m.km.toFixed(1)}<span>km</span></div>
-                </div>`).join('')}
-          </div>` : ''}
-        </div>`;
+      const open = state.expandedGroupId === g.id;
+      return '<div class="group-row ' + (mine ? 'is-mine' : '') + '" data-gid="' + g.id + '">' +
+        '<div class="group-row-head"><span class="group-rank">' + (i < 3 ? medals[i] : (i+1)) + '</span>' +
+        '<div class="group-main"><div class="group-name">' + esc(g.name) +
+        (mine ? '<span class="you-tag">YOUR GROUP</span>' : '') + '</div>' +
+        '<div class="group-meta">' + g.memberCount + '/' + s.maxGroupSize + ' members · ' +
+        g.membersHitTarget + ' hit 50 km' + (g.hasLeader ? '' : ' · no leader yet') + '</div>' +
+        '<div class="group-bar-track"><div class="group-bar-fill" style="width:' + pct + '%"></div></div></div>' +
+        '<div class="group-km"><div class="v">' + g.totalKm.toFixed(1) + '</div><div class="u">/ ' + g.groupTargetKm + ' km</div></div></div>' +
+        (open ? '<div class="member-list">' +
+          (!g.members.length ? '<div class="member-empty">No members yet.</div>' : g.members.map(memberRowHtml).join('')) +
+          '</div>' : '') + '</div>';
     }).join('');
   }
 
   function wireGroupRows(panel) {
-    panel.querySelectorAll('.group-row').forEach(row => {
-      row.querySelector('.group-row-head').addEventListener('click', () => {
+    panel.querySelectorAll('.group-row').forEach(function (row) {
+      row.querySelector('.group-row-head').addEventListener('click', function () {
         const gid = Number(row.dataset.gid);
         state.expandedGroupId = state.expandedGroupId === gid ? null : gid;
         render();
@@ -1030,297 +963,303 @@
     });
   }
 
-  // ---------- Public summary (no login) ----------
-  function renderSummary() {
-    root.innerHTML = `
-      <div class="brandbar"><div class="wordmark">BROADCOM<small>Running Challenge</small></div><div class="spacer"></div><a class="top-link" id="back-link" href="#">← Back</a></div>
-      <div class="panel" id="panel"></div>`;
-    root.querySelector('#back-link').addEventListener('click', e => { e.preventDefault(); state.view = 'landing'; render(); });
-    const panel = root.querySelector('#panel');
+  // ---------- Public standings ----------
+  function renderPublicStandings() {
+    root.innerHTML = '<div class="brandbar"><div class="wordmark">BROADCOM<small>Running Challenge</small></div>' +
+      '<div class="spacer"></div><a class="top-link" id="back" href="#">← Sign in</a></div><div class="panel" id="p"></div>';
+    root.querySelector('#back').addEventListener('click', e => { e.preventDefault(); state.view = 'login'; render(); });
+    const p = root.querySelector('#p');
+    if (state.loading) { p.innerHTML = '<div class="loading-state">Loading standings…</div>'; return; }
+    const s = state.standings;
+    if (!s) { p.innerHTML = '<div class="empty-state">Could not load standings right now.</div>'; return; }
 
-    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading standings…</div>'; return; }
-    const s = state.groupStats;
-    if (!s) { panel.innerHTML = '<div class="empty-state">Could not load standings right now.</div>'; return; }
-
-    const cd = computeCountdown(s.config);
-    panel.innerHTML = `
-      <div class="board-header">
-        <span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>
-        <h2 class="board-h1">Group scoreboard</h2>
-        <p class="board-h1-sub">Ranked by total kilometres · ${s.perPersonTargetKm} km target per person</p>
-      </div>
-      ${renderCountdownHtml(cd)}
-      <div class="stat-strip">
-        <div class="stat-cell"><div class="num">${s.groups.length}</div><div class="label">Groups</div></div>
-        <div class="stat-cell"><div class="num">${s.totalRunners}</div><div class="label">Runners</div></div>
-        <div class="stat-cell"><div class="num">${s.companyKm.toFixed(1)}</div><div class="label">Total km</div></div>
-      </div>
-      <div class="tap-hint">Tap a group to see its members</div>
-      ${renderGroupRows(s.groups)}`;
-    wireGroupRows(panel);
-    startCountdown(s.config);
+    p.innerHTML =
+      '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>' +
+      '<h2 class="board-h1">Group scoreboard</h2>' +
+      '<p class="board-h1-sub">15 Sep – 15 Oct · 50 km per person · 500 km per group</p></div>' +
+      cdHtml(computeCd(s)) + todayCardHtml(s) + topRunnersHtml(s) +
+      '<div class="stat-strip">' +
+      '<div class="stat-cell"><div class="num">' + s.groups.length + '</div><div class="label">Groups</div></div>' +
+      '<div class="stat-cell"><div class="num">' + s.totalRunners + '</div><div class="label">Runners</div></div>' +
+      '<div class="stat-cell"><div class="num">' + s.companyKm.toFixed(1) + '</div><div class="label">Total km</div></div></div>' +
+      '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
+    wireGroupRows(p);
+    startCd(s);
   }
 
   // ---------- App shell ----------
   function renderApp() {
-    const s = state.groupStats;
-    const cfg = s ? s.config : {};
-    const title = cfg.title || 'Broadcom Running Challenge';
-    const myGroup = s && state.profile ? s.groups.find(g => g.id === state.profile.groupId) : null;
-    const target = s ? s.perPersonTargetKm : 50;
-    const groupTarget = myGroup ? myGroup.groupTargetKm : 0;
-    const pct = groupTarget > 0 ? Math.min(100, (myGroup.totalKm / groupTarget) * 100) : 0;
+    const s = state.standings;
+    const isLeader = state.profile.role === 'leader';
+    const myGroup = s ? s.groups.find(g => g.id === state.profile.groupId) : null;
+    const target = s ? s.groupTargetKm : 500;
+    const pct = myGroup && target ? Math.min(100, (myGroup.totalKm / target) * 100) : 0;
 
-    root.innerHTML = `
-      <div class="brandbar">
-        <div class="wordmark">BROADCOM<small>Running Challenge</small></div>
-        <div class="spacer"></div>
-        <a class="top-link" id="logout-link" href="#">Switch employee</a>
-      </div>
-      <div class="hero">
-        <div class="hero-top">
-          <div><div class="hero-title display">${escapeHtml(title)}</div><div class="hero-sub">${myGroup ? escapeHtml(myGroup.name) + ' progress' : 'Challenge progress'}</div></div>
-          <div class="hero-stat"><div class="num display">${myGroup ? myGroup.totalKm.toFixed(1) : '0.0'} km</div><div class="label">Your group total</div></div>
-        </div>
-        <div class="track-wrap">
-          <div class="track"><div class="track-fill" style="width:${pct}%"></div><div class="track-runner" style="left:${pct}%">🏃</div></div>
-          <div class="track-labels"><span>0 km</span><span>Goal: ${groupTarget} km</span></div>
-        </div>
-        <div class="profile-chip">
-          <span>${escapeHtml(state.profile.name)}</span>
-          <span class="cat-badge Intermediate">${escapeHtml(state.profile.groupName || '—')}</span>
-          <span class="mono" style="opacity:0.7">#${escapeHtml(state.profile.employeeId)}</span>
-        </div>
-      </div>
-      <div class="tabs">
-        <button class="tab-btn ${state.appTab === 'dashboard' ? 'active' : ''}" data-tab="dashboard">My Dashboard</button>
-        <button class="tab-btn ${state.appTab === 'leaderboard' ? 'active' : ''}" data-tab="leaderboard">Groups</button>
-        <button class="tab-btn ${state.appTab === 'admin' ? 'active' : ''}" data-tab="admin">Admin</button>
-      </div>
-      <div class="panel" id="panel"></div>`;
+    root.innerHTML =
+      '<div class="brandbar"><div class="wordmark">BROADCOM<small>Running Challenge</small></div>' +
+      '<div class="spacer"></div><a class="top-link" id="out" href="#">Sign out</a></div>' +
+      '<div class="hero"><div class="hero-top"><div>' +
+      '<div class="hero-title display">' + esc(myGroup ? myGroup.name : 'Your group') + '</div>' +
+      '<div class="hero-sub">15 Sep – 15 Oct · 500 km group goal</div></div>' +
+      '<div class="hero-stat"><div class="num display">' + (myGroup ? myGroup.totalKm.toFixed(1) : '0.0') + ' km</div>' +
+      '<div class="label">Group total</div></div></div>' +
+      '<div class="track-wrap"><div class="track"><div class="track-fill" style="width:' + pct + '%"></div>' +
+      '<div class="track-runner" style="left:' + pct + '%">🏃</div></div>' +
+      '<div class="track-labels"><span>0 km</span><span>Goal: ' + target + ' km</span></div></div>' +
+      '<div class="profile-chip"><span>' + esc(state.profile.name) + '</span>' +
+      '<span class="cat-badge ' + (isLeader ? 'Expert' : 'Intermediate') + '">' + (isLeader ? 'GROUP LEADER' : 'MEMBER') + '</span>' +
+      '<span class="mono" style="opacity:0.7">#' + esc(state.profile.employeeId) + '</span></div></div>' +
+      '<div class="tabs">' +
+      '<button class="tab-btn ' + (state.appTab==='dashboard'?'active':'') + '" data-tab="dashboard">Dashboard</button>' +
+      '<button class="tab-btn ' + (state.appTab==='groups'?'active':'') + '" data-tab="groups">All Groups</button>' +
+      (isLeader ? '<button class="tab-btn ' + (state.appTab==='manage'?'active':'') + '" data-tab="manage">Manage Team</button>' : '') +
+      '<button class="tab-btn ' + (state.appTab==='admin'?'active':'') + '" data-tab="admin">Admin</button>' +
+      '</div><div class="panel" id="p"></div>';
 
-    root.querySelector('#logout-link').addEventListener('click', e => {
-      e.preventDefault(); clearProfile(); state.profile = null; state.view = 'landing'; render();
+    root.querySelector('#out').addEventListener('click', async function (e) {
+      e.preventDefault();
+      try { await api.logout(state.token); } catch (err) {}
+      clearToken(); state.token = null; state.profile = null; state.view = 'login'; render();
     });
     root.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => goToTab(b.dataset.tab)));
 
-    const panel = root.querySelector('#panel');
-    if (state.appTab === 'dashboard') renderDashboard(panel);
-    else if (state.appTab === 'leaderboard') renderGroups(panel);
-    else renderAdmin(panel);
+    const p = root.querySelector('#p');
+    if (state.appTab === 'dashboard') renderDashboard(p);
+    else if (state.appTab === 'groups') renderGroups(p);
+    else if (state.appTab === 'manage') renderManage(p);
+    else renderAdmin(p);
   }
 
   // ---------- Dashboard ----------
-  function renderDashboard(panel) {
-    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading your dashboard…</div>'; return; }
-    const s = state.groupStats;
-    if (!s) { panel.innerHTML = '<div class="empty-state">Could not load your stats right now.</div>'; return; }
+  function renderDashboard(p) {
+    if (state.loading) { p.innerHTML = '<div class="loading-state">Loading…</div>'; return; }
+    const s = state.standings;
+    if (!s) { p.innerHTML = '<div class="empty-state">Could not load stats right now.</div>'; return; }
 
-    const target = s.perPersonTargetKm;
     const myGroup = s.groups.find(g => g.id === state.profile.groupId);
     const me = myGroup ? myGroup.members.find(m => m.employeeId === state.profile.employeeId) : null;
     const myKm = me ? me.km : 0;
-    const myPct = Math.min(100, (myKm / target) * 100);
-    const remaining = Math.max(0, target - myKm);
+    const myPct = Math.min(100, (myKm / s.perPersonTargetKm) * 100);
+    const left = Math.max(0, s.perPersonTargetKm - myKm);
+    const rank = s.groups.findIndex(g => g.id === state.profile.groupId) + 1;
 
-    panel.innerHTML = `
-      <div class="target-card">
-        <div class="row"><span class="t1">Your ${target} km target</span><span class="t2">${myKm.toFixed(1)} / ${target} km</span></div>
-        <div class="mini-track"><div class="mini-track-fill" style="width:${myPct}%"></div></div>
-        <div class="target-note">${remaining > 0
-          ? `🏃 ${remaining.toFixed(1)} km to go — you're ${Math.round(myPct)}% there.`
-          : `🎉 Target smashed! Every extra km still counts for ${escapeHtml(myGroup ? myGroup.name : 'your group')}.`}</div>
-      </div>
+    p.innerHTML = cdHtml(computeCd(s)) +
+      '<div class="target-card"><div class="row"><span class="t1">Your ' + s.perPersonTargetKm + ' km target</span>' +
+      '<span class="t2">' + myKm.toFixed(1) + ' / ' + s.perPersonTargetKm + ' km</span></div>' +
+      '<div class="mini-track"><div class="mini-track-fill" style="width:' + myPct + '%"></div></div>' +
+      '<div class="target-note">' + (left > 0
+        ? '🏃 ' + left.toFixed(1) + ' km to go — you are ' + Math.round(myPct) + '% there.'
+        : '🎉 Target complete! Extra km still push ' + esc(myGroup ? myGroup.name : 'your group') + ' up the board.') +
+      '</div></div>' +
+      '<div class="stat-strip">' +
+      '<div class="stat-cell"><div class="num">#' + rank + '</div><div class="label">Group rank</div></div>' +
+      '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.membersHitTarget : 0) + '</div><div class="label">Hit 50 km</div></div>' +
+      '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.memberCount : 0) + '</div><div class="label">Members</div></div></div>' +
+      todayCardHtml(s) + topRunnersHtml(s) +
+      '<div class="board-title">' + esc(myGroup ? myGroup.name : 'Your group') + ' — Member Progress</div>' +
+      (myGroup && myGroup.members.length
+        ? '<div class="member-list standalone">' + myGroup.members.map(memberRowHtml).join('') + '</div>'
+        : '<div class="empty-state">No members in your group yet.</div>') +
+      (state.profile.role === 'member'
+        ? '<div class="readonly-note">📋 Your group leader records everyone\'s kilometres. Pass your runs to them each week.</div>'
+        : '');
+    startCd(s);
+  }
 
-      <div class="form-screen" style="padding:0;max-width:none;margin-bottom:26px;">
-        <h2 style="font-size:15px;">Log a run</h2>
-        <div class="field"><label for="f-date">Date</label><input id="f-date" type="date" value="${todayStr()}" /></div>
-        <div class="field"><label for="f-distance">Distance (km)</label><input id="f-distance" type="number" step="0.1" min="0.1" max="100" placeholder="5.0" /></div>
-        <div class="field"><label for="f-minutes">Duration (min, optional)</label><input id="f-minutes" type="number" step="1" min="0" placeholder="30" /></div>
-        <button class="submit-btn" id="submit-btn">Log this run</button>
-        <div id="form-status"></div>
-      </div>
+  // ---------- All groups ----------
+  function renderGroups(p) {
+    if (state.loading) { p.innerHTML = '<div class="loading-state">Loading groups…</div>'; return; }
+    const s = state.standings;
+    if (!s) { p.innerHTML = '<div class="empty-state">Could not load the leaderboard.</div>'; return; }
+    p.innerHTML =
+      '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
+      '<h2 class="board-h1">Group scoreboard</h2>' +
+      '<p class="board-h1-sub">Ranked by total kilometres · 500 km per group</p></div>' +
+      todayCardHtml(s) + topRunnersHtml(s) +
+      '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
+    wireGroupRows(p);
+  }
 
-      <div class="board-title">${escapeHtml(myGroup ? myGroup.name : 'Your group')} — Member Progress</div>
-      ${myGroup && myGroup.members.length ? `
-        <div class="member-list standalone">
-          ${myGroup.members.map(m => `
-            <div class="member-row ${m.employeeId === state.profile.employeeId ? 'is-me' : ''}">
-              <div class="member-avatar">${escapeHtml(initials(m.name))}</div>
-              <div class="member-body">
-                <div class="member-name">${escapeHtml(m.name)} ${m.hitTarget ? '<span class="target-tick">✓</span>' : ''}</div>
-                <div class="member-bar-track"><div class="member-bar-fill ${m.hitTarget ? 'done' : ''}" style="width:${m.pct}%"></div></div>
-              </div>
-              <div class="member-km">${m.km.toFixed(1)}<span>km</span></div>
-            </div>`).join('')}
-        </div>` : '<div class="empty-state">No members in your group yet.</div>'}`;
+  // ---------- Leader: manage team ----------
+  function renderManage(p) {
+    if (state.loading) { p.innerHTML = '<div class="loading-state">Loading your team…</div>'; return; }
+    const g = state.myGroup;
+    if (!g || g.error) { p.innerHTML = '<div class="empty-state">Could not load your team.</div>'; return; }
+    const full = g.members.length >= g.maxGroupSize;
 
-    if (state.formStatus) {
-      panel.querySelector('#form-status').innerHTML =
-        `<div class="${state.formStatus.type === 'ok' ? 'confirm-msg' : 'error-msg'}">${escapeHtml(state.formStatus.msg)}</div>`;
-    }
+    p.innerHTML =
+      '<div class="admin-section"><h4>Record kilometres</h4>' +
+      '<p class="section-hint">Enter what each member ran. Only your own group appears here.</p>' +
+      '<div class="field"><label for="r-member">Member</label><select id="r-member">' +
+      g.members.map(m => '<option value="' + esc(m.employeeId) + '">' + esc(m.name) + (m.role==='leader'?' (you)':'') + '</option>').join('') +
+      '</select></div><div class="admin-config-grid">' +
+      '<div class="field"><label for="r-date">Date</label><input id="r-date" type="date" value="' + todayStr() + '" min="2026-09-15" max="2026-10-15" /></div>' +
+      '<div class="field"><label for="r-km">Distance (km)</label><input id="r-km" type="number" step="0.1" min="0.1" max="200" placeholder="12.5" /></div></div>' +
+      '<button class="submit-btn" id="r-save" style="max-width:220px;margin-top:12px;">Record run</button><div id="r-status"></div></div>' +
 
-    panel.querySelector('#submit-btn').addEventListener('click', async () => {
-      const date = panel.querySelector('#f-date').value;
-      const km = parseFloat(panel.querySelector('#f-distance').value);
-      const mins = parseFloat(panel.querySelector('#f-minutes').value) || 0;
-      if (!date || !km || km <= 0) { state.formStatus = { type: 'err', msg: 'Please enter a date and a distance greater than 0.' }; render(); return; }
-      if (km > 100) { state.formStatus = { type: 'err', msg: 'That looks too high — max 100 km per entry.' }; render(); return; }
-      const btn = panel.querySelector('#submit-btn');
-      btn.disabled = true; btn.textContent = 'Logging…';
+      '<div class="admin-section"><h4>Your team (' + g.members.length + '/' + g.maxGroupSize + ')</h4>' +
+      '<div class="table-wrap"><table class="admin-table"><tr><th>Name</th><th>ID</th><th>km</th><th>Login</th></tr>' +
+      g.members.map(m => '<tr><td>' + esc(m.name) + (m.role==='leader'?' <span class="lead-tag">LEADER</span>':'') + '</td>' +
+        '<td class="mono">' + esc(m.employeeId) + '</td><td><strong>' + Number(m.km).toFixed(1) + '</strong></td>' +
+        '<td>' + (m.hasPassword ? '<span style="color:#1F9C8C">✓ active</span>' : '<span style="color:#8A6110">pending</span>') + '</td></tr>').join('') +
+      '</table></div></div>' +
+
+      '<div class="admin-section"><h4>Add a member</h4>' +
+      (full ? '<div class="error-msg">Your group is full (10 members).</div>'
+        : '<p class="section-hint">They will set their own password the first time they sign in.</p>' +
+          '<div class="admin-config-grid">' +
+          '<div class="field"><label for="a-id">Employee ID</label><input id="a-id" type="text" placeholder="BRCM10234" /></div>' +
+          '<div class="field"><label for="a-name">Name</label><input id="a-name" type="text" placeholder="Full name" /></div></div>' +
+          '<button class="submit-btn" id="a-save" style="max-width:220px;margin-top:12px;">Add member</button><div id="a-status"></div>') +
+      '</div>' +
+
+      '<div class="admin-section"><h4>Recent entries</h4>' +
+      (!g.entries.length ? '<div class="empty-state">Nothing recorded yet.</div>'
+        : '<div class="table-wrap"><table class="admin-table"><tr><th>Date</th><th>Member</th><th>km</th><th></th></tr>' +
+          g.entries.slice(0, 30).map(e => '<tr><td class="mono">' + esc(e.date) + '</td><td>' + esc(e.name) + '</td>' +
+            '<td>' + Number(e.km).toFixed(1) + '</td><td><button class="ghost-btn del-entry" data-id="' + e.id +
+            '" style="padding:4px 9px;font-size:11px;">Remove</button></td></tr>').join('') + '</table></div>') +
+      '</div>';
+
+    p.querySelector('#r-save').addEventListener('click', async function () {
+      const mid = p.querySelector('#r-member').value;
+      const date = p.querySelector('#r-date').value;
+      const km = parseFloat(p.querySelector('#r-km').value);
+      const st = p.querySelector('#r-status'), btn = p.querySelector('#r-save');
+      if (!date || !km || km <= 0) { st.innerHTML = '<div class="error-msg">Enter a date and a distance above 0.</div>'; return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        await logRun(state.profile.employeeId, date, km, mins);
-        state.formStatus = { type: 'ok', msg: `Logged ${km} km for ${date}. Nice work!` };
-        await goToTab('dashboard');
-      } catch (e) {
-        state.formStatus = { type: 'err', msg: 'Could not save that run — please try again.' };
-        render();
-      }
+        const r = await api.logRun(state.token, mid, date, km, 0);
+        if (r && r.success) { await goToTab('manage'); }
+        else { st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not save.') + '</div>'; btn.disabled = false; btn.textContent = 'Record run'; }
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; btn.disabled = false; btn.textContent = 'Record run'; }
+    });
+
+    const addBtn = p.querySelector('#a-save');
+    if (addBtn) addBtn.addEventListener('click', async function () {
+      const id = p.querySelector('#a-id').value.trim();
+      const name = p.querySelector('#a-name').value.trim();
+      const st = p.querySelector('#a-status');
+      if (!id || !name) { st.innerHTML = '<div class="error-msg">Both Employee ID and name are required.</div>'; return; }
+      addBtn.disabled = true; addBtn.textContent = 'Adding…';
+      try {
+        const r = await api.addMember(state.token, id, name);
+        if (r && r.success) { await goToTab('manage'); }
+        else { st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not add.') + '</div>'; addBtn.disabled = false; addBtn.textContent = 'Add member'; }
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; addBtn.disabled = false; addBtn.textContent = 'Add member'; }
+    });
+
+    p.querySelectorAll('.del-entry').forEach(function (b) {
+      b.addEventListener('click', async function () {
+        if (!confirm('Remove this entry?')) return;
+        b.disabled = true; b.textContent = '…';
+        try { await api.deleteEntry(state.token, Number(b.dataset.id)); await goToTab('manage'); }
+        catch (e) { b.disabled = false; b.textContent = 'Remove'; }
+      });
     });
   }
 
-  // ---------- Groups leaderboard ----------
-  function renderGroups(panel) {
-    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading groups…</div>'; return; }
-    const s = state.groupStats;
-    if (!s) { panel.innerHTML = '<div class="empty-state">Could not load the leaderboard right now.</div>'; return; }
-
-    const cd = computeCountdown(s.config);
-    panel.innerHTML = `
-      <div class="board-header">
-        <span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>
-        <h2 class="board-h1">Group scoreboard</h2>
-        <p class="board-h1-sub">Ranked by total kilometres · ${s.perPersonTargetKm} km target per person</p>
-      </div>
-      ${renderCountdownHtml(cd)}
-      <div class="stat-strip">
-        <div class="stat-cell"><div class="num">${s.groups.length}</div><div class="label">Groups</div></div>
-        <div class="stat-cell"><div class="num">${s.totalRunners}</div><div class="label">Runners</div></div>
-        <div class="stat-cell"><div class="num">${s.companyKm.toFixed(1)}</div><div class="label">Total km</div></div>
-      </div>
-      <div class="tap-hint">Tap a group to see its members</div>
-      ${renderGroupRows(s.groups)}`;
-    wireGroupRows(panel);
-    startCountdown(s.config);
-  }
-
   // ---------- Admin ----------
-  function renderAdmin(panel) {
+  function renderAdmin(p) {
     if (!state.adminData || !state.adminData.authorized) {
-      panel.innerHTML = `
-        <div class="admin-gate">
-          <div class="board-title">Admin Access</div>
-          <div class="field"><label for="admin-pass">Passcode</label><input id="admin-pass" type="password" placeholder="Enter admin passcode" /></div>
-          <button class="submit-btn" id="unlock-btn">Unlock</button>
-          <div id="gate-status"></div>
-        </div>`;
-      const unlock = async () => {
-        const pass = panel.querySelector('#admin-pass').value;
-        const st = panel.querySelector('#gate-status');
+      p.innerHTML = '<div class="admin-gate"><div class="board-title">Admin Access</div>' +
+        '<div class="field"><label for="ap">Passcode</label><input id="ap" type="password" placeholder="Admin passcode" /></div>' +
+        '<button class="submit-btn" id="unlock">Unlock</button><div id="gs"></div></div>';
+      const go = async function () {
+        const pass = p.querySelector('#ap').value, st = p.querySelector('#gs');
         try {
-          const res = await loadAdmin(pass);
-          if (res && res.authorized) {
-            state.adminData = res; sessionStorage.setItem(ADMIN_KEY, pass); renderAdmin(panel);
-          } else { st.innerHTML = '<div class="error-msg">Incorrect passcode.</div>'; }
+          const r = await api.adminData(pass);
+          if (r && r.authorized) { state.adminData = r; sessionStorage.setItem(ADMIN_KEY, pass); renderAdmin(p); }
+          else st.innerHTML = '<div class="error-msg">Incorrect passcode.</div>';
         } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
       };
-      panel.querySelector('#unlock-btn').addEventListener('click', unlock);
-      panel.querySelector('#admin-pass').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+      p.querySelector('#unlock').addEventListener('click', go);
+      p.querySelector('#ap').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
       return;
     }
 
     const d = state.adminData;
-    panel.innerHTML = `
-      <div class="stat-row">
-        <div class="stat-card"><div class="num display">${d.totalEmployees}</div><div class="label">Registered</div></div>
-        <div class="stat-card"><div class="num display">${d.totalEntries}</div><div class="label">Runs logged</div></div>
-        <div class="stat-card"><div class="num display">${d.allTimeKm.toFixed(1)}</div><div class="label">Total km</div></div>
-      </div>
+    const noLeader = d.groups.filter(g => !g.leader);
+    p.innerHTML =
+      '<div class="stat-row">' +
+      '<div class="stat-card"><div class="num display">' + d.totalUsers + '</div><div class="label">Registered</div></div>' +
+      '<div class="stat-card"><div class="num display">' + d.totalEntries + '</div><div class="label">Entries</div></div>' +
+      '<div class="stat-card"><div class="num display">' + d.allTimeKm.toFixed(1) + '</div><div class="label">Total km</div></div></div>' +
 
-      <div class="admin-section">
-        <h4>Challenge Settings</h4>
-        <div class="admin-config-grid">
-          <div class="field"><label>Title</label><input id="cfg-title" type="text" value="${escapeHtml(d.config.title)}" /></div>
-          <div class="field"><label>Target per person (km)</label><input id="cfg-target" type="number" value="${d.config.perPersonTargetKm}" /></div>
-          <div class="field"><label>Start Date</label><input id="cfg-start" type="date" value="${d.config.startDate || ''}" /></div>
-          <div class="field"><label>End Date</label><input id="cfg-end" type="date" value="${d.config.endDate || ''}" /></div>
-          <div class="field"><label>Max members per group</label><input id="cfg-size" type="number" value="${d.config.maxGroupSize}" /></div>
-        </div>
-        <button class="submit-btn" id="cfg-save" style="max-width:200px;margin-top:14px;">Save Settings</button>
-        <div id="cfg-status"></div>
-      </div>
+      '<div class="admin-section"><h4>Create a group leader</h4>' +
+      '<p class="section-hint">Leaders add their own members and record their team\'s kilometres.</p>' +
+      '<div class="admin-config-grid">' +
+      '<div class="field"><label>Employee ID</label><input id="nl-id" type="text" placeholder="BRCM10234" /></div>' +
+      '<div class="field"><label>Name</label><input id="nl-name" type="text" placeholder="Full name" /></div>' +
+      '<div class="field"><label>Group</label><select id="nl-group">' +
+      d.groups.map(g => '<option value="' + g.id + '"' + (g.leader ? ' disabled' : '') + '>' + esc(g.name) +
+        (g.leader ? ' — has ' + esc(g.leader) : '') + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Initial password</label><input id="nl-pw" type="text" placeholder="min 6 characters" /></div></div>' +
+      '<button class="submit-btn" id="nl-save" style="max-width:220px;margin-top:12px;">Create leader</button>' +
+      '<div id="nl-status"></div>' +
+      (noLeader.length ? '<div class="section-hint" style="margin-top:10px;">Still without a leader: ' +
+        noLeader.map(g => esc(g.name)).join(', ') + '</div>' : '') + '</div>' +
 
-      <div class="admin-section">
-        <h4>Groups (${d.groups.length}) — click a name to rename</h4>
-        <div class="table-wrap"><table class="admin-table">
-          <tr><th>Group</th><th>Members</th><th></th></tr>
-          ${d.groups.map(g => `<tr>
-            <td><input class="grp-name-input" data-gid="${g.id}" value="${escapeHtml(g.name)}" /></td>
-            <td>${g.memberCount}</td>
-            <td><button class="ghost-btn grp-save" data-gid="${g.id}" style="padding:5px 10px;font-size:11.5px;">Save</button></td>
-          </tr>`).join('')}
-        </table></div>
-        <div id="grp-status"></div>
-      </div>
+      '<div class="admin-section"><h4>Groups</h4><div class="table-wrap"><table class="admin-table">' +
+      '<tr><th>Group</th><th>Leader</th><th>Members</th></tr>' +
+      d.groups.map(g => '<tr><td>' + esc(g.name) + '</td><td>' +
+        (g.leader ? esc(g.leader) : '<em style="color:#A32E2E">none</em>') + '</td><td>' + g.memberCount + '</td></tr>').join('') +
+      '</table></div></div>' +
 
-      <div class="admin-section">
-        <h4>Employees (${d.employees.length})</h4>
-        <div class="table-wrap"><table class="admin-table">
-          <tr><th>ID</th><th>Name</th><th>Group</th></tr>
-          ${d.employees.map(e => `<tr><td class="mono">${escapeHtml(e.employeeId)}</td><td>${escapeHtml(e.name)}</td><td>${escapeHtml(e.groupName || '—')}</td></tr>`).join('')}
-        </table></div>
-      </div>
+      '<div class="admin-section"><h4>All users (' + d.users.length + ')</h4><div class="table-wrap"><table class="admin-table">' +
+      '<tr><th>ID</th><th>Name</th><th>Role</th><th>Group</th><th>Login</th></tr>' +
+      d.users.map(u => '<tr><td class="mono">' + esc(u.employeeId) + '</td><td>' + esc(u.name) + '</td><td>' +
+        (u.role === 'leader' ? '<strong>Leader</strong>' : 'Member') + '</td><td>' + esc(u.groupName || '—') + '</td><td>' +
+        (u.hasPassword ? '✓' : 'pending') + '</td></tr>').join('') + '</table></div></div>' +
 
-      <button class="ghost-btn" id="csv-btn">Download full entries log as CSV</button>`;
+      '<div class="admin-section"><h4>Reset a password</h4><div class="admin-config-grid">' +
+      '<div class="field"><label>Employee ID</label><input id="rp-id" type="text" placeholder="BRCM10234" /></div>' +
+      '<div class="field"><label>New password</label><input id="rp-pw" type="text" placeholder="min 6 characters" /></div></div>' +
+      '<button class="submit-btn" id="rp-save" style="max-width:220px;margin-top:12px;">Reset password</button>' +
+      '<div id="rp-status"></div></div>' +
 
-    panel.querySelector('#cfg-save').addEventListener('click', async () => {
-      const st = panel.querySelector('#cfg-status');
-      const pass = sessionStorage.getItem(ADMIN_KEY);
-      const btn = panel.querySelector('#cfg-save');
-      btn.disabled = true; btn.textContent = 'Saving…';
+      '<button class="ghost-btn" id="csv">Download all entries as CSV</button>';
+
+    p.querySelector('#nl-save').addEventListener('click', async function () {
+      const pass = sessionStorage.getItem(ADMIN_KEY), st = p.querySelector('#nl-status');
+      const btn = p.querySelector('#nl-save'); btn.disabled = true; btn.textContent = 'Creating…';
       try {
-        const res = await saveConfig(pass, {
-          title: panel.querySelector('#cfg-title').value,
-          perPersonTargetKm: panel.querySelector('#cfg-target').value,
-          startDate: panel.querySelector('#cfg-start').value,
-          endDate: panel.querySelector('#cfg-end').value,
-          maxGroupSize: panel.querySelector('#cfg-size').value
-        });
-        if (res && res.success === false) {
-          st.innerHTML = '<div class="error-msg">' + escapeHtml(res.error) + '</div>';
+        const r = await api.createLeader(pass, p.querySelector('#nl-id').value.trim(),
+          p.querySelector('#nl-name').value.trim(), Number(p.querySelector('#nl-group').value),
+          p.querySelector('#nl-pw').value);
+        if (r && r.success) {
+          state.adminData = await api.adminData(pass);
+          renderAdmin(p);
+          const s2 = p.querySelector('#nl-status');
+          if (s2) s2.innerHTML = '<div class="confirm-msg">Leader created. Give them their ID and password.</div>';
         } else {
-          st.innerHTML = '<div class="confirm-msg">Settings saved.</div>';
-          state.adminData = await loadAdmin(pass);
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Create leader';
         }
-      } catch (e) { st.innerHTML = '<div class="error-msg">Could not save — please try again.</div>'; }
-      btn.disabled = false; btn.textContent = 'Save Settings';
+      } catch (e) {
+        st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
+        btn.disabled = false; btn.textContent = 'Create leader';
+      }
     });
 
-    panel.querySelectorAll('.grp-save').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const gid = Number(btn.dataset.gid);
-        const input = panel.querySelector('.grp-name-input[data-gid="' + gid + '"]');
-        const st = panel.querySelector('#grp-status');
-        const pass = sessionStorage.getItem(ADMIN_KEY);
-        btn.disabled = true; btn.textContent = '…';
-        try {
-          const res = await renameGroup(pass, gid, input.value.trim());
-          st.innerHTML = (res && res.success === false)
-            ? '<div class="error-msg">' + escapeHtml(res.error) + '</div>'
-            : '<div class="confirm-msg">Group renamed.</div>';
-          state.adminData = await loadAdmin(pass);
-        } catch (e) { st.innerHTML = '<div class="error-msg">Could not rename — please try again.</div>'; }
-        btn.disabled = false; btn.textContent = 'Save';
-      });
+    p.querySelector('#rp-save').addEventListener('click', async function () {
+      const pass = sessionStorage.getItem(ADMIN_KEY), st = p.querySelector('#rp-status');
+      const btn = p.querySelector('#rp-save'); btn.disabled = true; btn.textContent = 'Resetting…';
+      try {
+        const r = await api.resetPassword(pass, p.querySelector('#rp-id').value.trim(), p.querySelector('#rp-pw').value);
+        st.innerHTML = (r && r.success)
+          ? '<div class="confirm-msg">Password reset — they will need to sign in again.</div>'
+          : '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
+      btn.disabled = false; btn.textContent = 'Reset password';
     });
 
-    panel.querySelector('#csv-btn').addEventListener('click', () => {
-      const rows = [['EmployeeID', 'Name', 'Group', 'Date', 'Distance (km)', 'Duration (min)']];
-      d.entries.forEach(e => rows.push([e.employeeId, e.name, e.groupName || '', e.date, e.distanceKm, e.minutes]));
-      const csv = rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\n');
+    p.querySelector('#csv').addEventListener('click', function () {
+      const rows = [['EmployeeID','Name','Group','Date','km','EnteredBy']];
+      d.entries.forEach(e => rows.push([e.employeeId, e.name, e.groupName || '', e.date, e.km, e.enteredBy || '']));
+      const csv = rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g,'""') + '"').join(',')).join('\n');
       const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = 'running-challenge-entries.csv'; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = 'running-challenge.csv'; a.click();
       URL.revokeObjectURL(url);
     });
   }
