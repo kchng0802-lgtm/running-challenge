@@ -686,7 +686,9 @@
     deleteEntry: (t, eid) => rpc('leader_delete_entry', { p_token: t, p_entry_id: eid }),
     adminData: p => rpc('admin_data', { p_passcode: p }),
     createLeader: (p, id, name, gid, pw) => rpc('admin_create_leader', { p_passcode: p, p_employee_id: id, p_name: name, p_group_id: gid, p_password: pw }),
-    resetPassword: (p, id, pw) => rpc('admin_reset_password', { p_passcode: p, p_employee_id: id, p_password: pw })
+    resetPassword: (p, id, pw) => rpc('admin_reset_password', { p_passcode: p, p_employee_id: id, p_password: pw }),
+    moveMember: (p, id, gid) => rpc('admin_move_member', { p_passcode: p, p_employee_id: id, p_new_group_id: gid }),
+    removeUser: (p, id) => rpc('admin_remove_user', { p_passcode: p, p_employee_id: id })
   };
 
   if ('serviceWorker' in navigator) {
@@ -1212,6 +1214,24 @@
         (u.role === 'leader' ? '<strong>Leader</strong>' : 'Member') + '</td><td>' + esc(u.groupName || '—') + '</td><td>' +
         (u.hasPassword ? '✓' : 'pending') + '</td></tr>').join('') + '</table></div></div>' +
 
+      '<div class="admin-section"><h4>Move a member to another group</h4>' +
+      '<p class="section-hint">Their logged kilometres move with them. Leaders cannot be moved — remove or replace them instead.</p>' +
+      '<div class="admin-config-grid">' +
+      '<div class="field"><label>Member</label><select id="mv-id">' +
+      d.users.filter(u => u.role !== 'leader').map(u => '<option value="' + esc(u.employeeId) + '">' +
+        esc(u.name) + ' — ' + esc(u.groupName || 'no group') + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Move to</label><select id="mv-group">' +
+      d.groups.map(g => '<option value="' + g.id + '">' + esc(g.name) + ' (' + g.memberCount + '/10)</option>').join('') +
+      '</select></div></div>' +
+      '<button class="submit-btn" id="mv-save" style="max-width:220px;margin-top:12px;">Move member</button>' +
+      '<div id="mv-status"></div></div>' +
+
+      '<div class="admin-section"><h4>Remove someone</h4>' +
+      '<p class="section-hint">Deletes the person and every run recorded for them. This cannot be undone.</p>' +
+      '<div class="field" style="max-width:320px;"><label>Employee ID</label><input id="rm-id" type="text" placeholder="BRCM10234" /></div>' +
+      '<button class="submit-btn" id="rm-save" style="max-width:220px;margin-top:12px;background:#A32E2E;">Remove permanently</button>' +
+      '<div id="rm-status"></div></div>' +
+
       '<div class="admin-section"><h4>Reset a password</h4><div class="admin-config-grid">' +
       '<div class="field"><label>Employee ID</label><input id="rp-id" type="text" placeholder="BRCM10234" /></div>' +
       '<div class="field"><label>New password</label><input id="rp-pw" type="text" placeholder="min 6 characters" /></div></div>' +
@@ -1252,6 +1272,52 @@
           : '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
       } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
       btn.disabled = false; btn.textContent = 'Reset password';
+    });
+
+    p.querySelector('#mv-save').addEventListener('click', async function () {
+      const pass = sessionStorage.getItem(ADMIN_KEY), st = p.querySelector('#mv-status');
+      const sel = p.querySelector('#mv-id');
+      if (!sel || !sel.value) { st.innerHTML = '<div class="error-msg">No members to move yet.</div>'; return; }
+      const btn = p.querySelector('#mv-save'); btn.disabled = true; btn.textContent = 'Moving…';
+      try {
+        const r = await api.moveMember(pass, sel.value, Number(p.querySelector('#mv-group').value));
+        if (r && r.success) {
+          state.adminData = await api.adminData(pass);
+          renderAdmin(p);
+          const s2 = p.querySelector('#mv-status');
+          if (s2) s2.innerHTML = '<div class="confirm-msg">' + esc(r.message) + '</div>';
+        } else {
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Move member';
+        }
+      } catch (e) {
+        st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
+        btn.disabled = false; btn.textContent = 'Move member';
+      }
+    });
+
+    p.querySelector('#rm-save').addEventListener('click', async function () {
+      const id = p.querySelector('#rm-id').value.trim();
+      const st = p.querySelector('#rm-status');
+      if (!id) { st.innerHTML = '<div class="error-msg">Enter an Employee ID.</div>'; return; }
+      if (!confirm('Permanently remove ' + id + ' and all their recorded runs? This cannot be undone.')) return;
+      const pass = sessionStorage.getItem(ADMIN_KEY);
+      const btn = p.querySelector('#rm-save'); btn.disabled = true; btn.textContent = 'Removing…';
+      try {
+        const r = await api.removeUser(pass, id);
+        if (r && r.success) {
+          state.adminData = await api.adminData(pass);
+          renderAdmin(p);
+          const s2 = p.querySelector('#rm-status');
+          if (s2) s2.innerHTML = '<div class="confirm-msg">' + esc(r.message) + '</div>';
+        } else {
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Remove permanently';
+        }
+      } catch (e) {
+        st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
+        btn.disabled = false; btn.textContent = 'Remove permanently';
+      }
     });
 
     p.querySelector('#csv').addEventListener('click', function () {
