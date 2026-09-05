@@ -608,6 +608,48 @@
   .group-km .u { font-size:9px; }
   .pw-chip { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; background:var(--gold-light); border:1px solid #F0DBA6; color:#8A6110; padding:3px 7px; border-radius:5px; }
 
+  /* ---------- Podium tinting for top 3 groups ---------- */
+  .group-row.rank-1 { border-color:#E3A62F; background:linear-gradient(180deg,#FEFAF0,var(--white)); }
+  .group-row.rank-1 .group-rank { font-size:22px; }
+  .group-row.rank-2 { border-color:#C4CBD2; background:linear-gradient(180deg,#FAFBFC,var(--white)); }
+  .group-row.rank-3 { border-color:#DDBA9A; background:linear-gradient(180deg,#FDF9F5,var(--white)); }
+  .group-row.rank-1 .group-km .v { color:#B8860B; }
+
+  /* ---------- Circular progress ring ---------- */
+  .ring-card { display:flex; align-items:center; gap:20px; background:linear-gradient(135deg,#0B2A4A,#0d3d5c); border-radius:16px; padding:20px; margin-bottom:20px; color:#fff; }
+  .ring-wrap { position:relative; width:96px; height:96px; flex-shrink:0; }
+  .ring-svg { transform:rotate(-90deg); }
+  .ring-bg { fill:none; stroke:rgba(255,255,255,0.14); stroke-width:9; }
+  .ring-fill { fill:none; stroke:url(#ringGrad); stroke-width:9; stroke-linecap:round; transition:stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1); }
+  .ring-label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .ring-pct { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:21px; line-height:1; }
+  .ring-sub { font-size:9px; color:#A9BBCC; text-transform:uppercase; letter-spacing:0.07em; margin-top:3px; }
+  .ring-body { flex:1; min-width:0; }
+  .ring-title { font-size:11.5px; color:#8FA3B8; text-transform:uppercase; letter-spacing:0.08em; }
+  .ring-km { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; margin:3px 0 6px; }
+  .ring-km small { font-size:14px; color:#A9BBCC; font-weight:500; }
+  .ring-note { font-size:13px; color:#C3D2E0; line-height:1.4; }
+  .ring-note strong { color:#6FE0CC; }
+  .ring-card.complete { background:linear-gradient(135deg,#0d5c4a,#1F9C8C); }
+
+  /* ---------- Better empty states ---------- */
+  .empty-hero { text-align:center; padding:36px 24px; background:var(--paper); border:1px dashed var(--line); border-radius:14px; }
+  .empty-hero .icon { font-size:38px; margin-bottom:12px; }
+  .empty-hero .eh-title { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; color:var(--navy); margin-bottom:6px; }
+  .empty-hero .eh-text { font-size:13px; color:var(--ink-soft); line-height:1.55; max-width:300px; margin:0 auto; }
+
+  /* ---------- Milestone badges ---------- */
+  .badge-strip { display:flex; gap:8px; margin-bottom:20px; }
+  .mini-badge { flex:1; text-align:center; padding:12px 6px; border-radius:12px; background:var(--paper); border:1px solid var(--line); opacity:0.45; transition:all 0.3s ease; }
+  .mini-badge.earned { opacity:1; background:var(--gold-light); border-color:#F0DBA6; }
+  .mini-badge .mb-icon { font-size:20px; }
+  .mini-badge .mb-label { font-size:9.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em; margin-top:4px; font-weight:600; }
+  .mini-badge.earned .mb-label { color:#8A6110; }
+
+  /* ---------- Countdown polish ---------- */
+  .cd-unit { transition:transform 0.2s ease; }
+  .countdown-card { position:relative; overflow:hidden; }
+
 </style>
 </head>
 <body>
@@ -904,8 +946,47 @@
   }
 
   // ---------- Shared blocks ----------
+  function ringCard(myKm, target, groupName) {
+    const pct = Math.min(100, (myKm / target) * 100);
+    const left = Math.max(0, target - myKm);
+    const R = 42, C = 2 * Math.PI * R;
+    const offset = C - (pct / 100) * C;
+    const done = left <= 0;
+    return '<div class="ring-card ' + (done ? 'complete' : '') + '">' +
+      '<div class="ring-wrap"><svg class="ring-svg" width="96" height="96">' +
+      '<defs><linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+      '<stop offset="0%" stop-color="#38C6B3"/><stop offset="100%" stop-color="#E3A62F"/></linearGradient></defs>' +
+      '<circle class="ring-bg" cx="48" cy="48" r="' + R + '"></circle>' +
+      '<circle class="ring-fill" cx="48" cy="48" r="' + R + '" stroke-dasharray="' + C + '" stroke-dashoffset="' + offset + '"></circle>' +
+      '</svg><div class="ring-label"><div class="ring-pct">' + Math.round(pct) + '%</div>' +
+      '<div class="ring-sub">of ' + target + ' km</div></div></div>' +
+      '<div class="ring-body"><div class="ring-title">Your progress</div>' +
+      '<div class="ring-km">' + myKm.toFixed(1) + '<small> / ' + target + ' km</small></div>' +
+      '<div class="ring-note">' + (done
+        ? '🎉 <strong>Target complete!</strong> Extra km still lift ' + esc(groupName) + '.'
+        : '<strong>' + left.toFixed(1) + ' km</strong> to go — keep at it.') +
+      '</div></div></div>';
+  }
+
+  function badgeStrip(myKm, target) {
+    const marks = [
+      { at: target * 0.25, icon: '🌱', label: '25%' },
+      { at: target * 0.5,  icon: '🔥', label: 'Halfway' },
+      { at: target * 0.75, icon: '💪', label: '75%' },
+      { at: target,        icon: '🏅', label: 'Done' }
+    ];
+    return '<div class="badge-strip">' + marks.map(m =>
+      '<div class="mini-badge ' + (myKm >= m.at ? 'earned' : '') + '">' +
+      '<div class="mb-icon">' + m.icon + '</div><div class="mb-label">' + m.label + '</div></div>'
+    ).join('') + '</div>';
+  }
+
   function topRunnersHtml(s) {
-    if (!s.topRunners || !s.topRunners.length) return '';
+    if (!s.topRunners || !s.topRunners.length) {
+      return '<div class="empty-hero" style="margin-bottom:20px;"><div class="icon">🏃</div>' +
+        '<div class="eh-title">No runs recorded yet</div>' +
+        '<div class="eh-text">Once leaders start logging kilometres, the top three runners appear here.</div></div>';
+    }
     const medals = ['🥇','🥈','🥉'];
     return '<div class="podium-card"><div class="podium-title">Top Runners</div>' +
       s.topRunners.map(function (r, i) {
@@ -918,7 +999,7 @@
   }
 
   function todayCardHtml(s) {
-    if (!s.topToday) return '<div class="today-card empty">No runs logged today yet.</div>';
+    if (!s.topToday) return '<div class="today-card empty">🌙 No runs logged today yet — be the first.</div>';
     return '<div class="today-card"><div class="today-label">🔥 Leading today</div>' +
       '<div class="today-group">' + esc(s.topToday.groupName) + '</div>' +
       '<div class="today-km">' + s.topToday.km.toFixed(1) + ' km logged today</div></div>';
@@ -943,7 +1024,8 @@
       const mine = g.id === myId;
       const pct = g.groupTargetKm > 0 ? Math.min(100, (g.totalKm / g.groupTargetKm) * 100) : 0;
       const open = state.expandedGroupId === g.id;
-      return '<div class="group-row ' + (mine ? 'is-mine' : '') + '" data-gid="' + g.id + '">' +
+      const rankCls = g.totalKm > 0 && i < 3 ? ' rank-' + (i+1) : '';
+      return '<div class="group-row' + rankCls + ' ' + (mine ? 'is-mine' : '') + '" data-gid="' + g.id + '">' +
         '<div class="group-row-head"><span class="group-rank">' + (i < 3 ? medals[i] : (i+1)) + '</span>' +
         '<div class="group-main"><div class="group-name">' + esc(g.name) +
         (mine ? '<span class="you-tag">YOUR GROUP</span>' : '') + '</div>' +
@@ -1048,13 +1130,8 @@
     const rank = s.groups.findIndex(g => g.id === state.profile.groupId) + 1;
 
     p.innerHTML = cdHtml(computeCd(s)) +
-      '<div class="target-card"><div class="row"><span class="t1">Your ' + s.perPersonTargetKm + ' km target</span>' +
-      '<span class="t2">' + myKm.toFixed(1) + ' / ' + s.perPersonTargetKm + ' km</span></div>' +
-      '<div class="mini-track"><div class="mini-track-fill" style="width:' + myPct + '%"></div></div>' +
-      '<div class="target-note">' + (left > 0
-        ? '🏃 ' + left.toFixed(1) + ' km to go — you are ' + Math.round(myPct) + '% there.'
-        : '🎉 Target complete! Extra km still push ' + esc(myGroup ? myGroup.name : 'your group') + ' up the board.') +
-      '</div></div>' +
+      ringCard(myKm, s.perPersonTargetKm, myGroup ? myGroup.name : 'your group') +
+      badgeStrip(myKm, s.perPersonTargetKm) +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">#' + rank + '</div><div class="label">Group rank</div></div>' +
       '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.membersHitTarget : 0) + '</div><div class="label">Hit 50 km</div></div>' +
@@ -1063,7 +1140,10 @@
       '<div class="board-title">' + esc(myGroup ? myGroup.name : 'Your group') + ' — Member Progress</div>' +
       (myGroup && myGroup.members.length
         ? '<div class="member-list standalone">' + myGroup.members.map(memberRowHtml).join('') + '</div>'
-        : '<div class="empty-state">No members in your group yet.</div>') +
+        : '<div class="empty-hero"><div class="icon">👥</div><div class="eh-title">No members yet</div>' +
+          '<div class="eh-text">' + (state.profile.role === 'leader'
+            ? 'Head to Manage Team to add your runners.'
+            : 'Your leader is still setting up the team.') + '</div></div>') +
       (state.profile.role === 'member'
         ? '<div class="readonly-note">📋 Your group leader records everyone\'s kilometres. Pass your runs to them each week.</div>'
         : '') +
@@ -1143,7 +1223,8 @@
       '</div>' +
 
       '<div class="admin-section"><h4>Recent entries</h4>' +
-      (!g.entries.length ? '<div class="empty-state">Nothing recorded yet.</div>'
+      (!g.entries.length ? '<div class="empty-hero"><div class="icon">📋</div><div class="eh-title">Nothing recorded yet</div>' +
+          '<div class="eh-text">Kilometres you record will appear here so you can check or correct them.</div></div>'
         : '<div class="table-wrap"><table class="admin-table"><tr><th>Date</th><th>Member</th><th>km</th><th></th></tr>' +
           g.entries.slice(0, 30).map(e => '<tr><td class="mono">' + esc(e.date) + '</td><td>' + esc(e.name) + '</td>' +
             '<td>' + Number(e.km).toFixed(1) + '</td><td><button class="ghost-btn del-entry" data-id="' + e.id +
