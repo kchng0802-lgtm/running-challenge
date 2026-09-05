@@ -530,6 +530,55 @@
     .hero-stat { text-align: left; }
     .admin-config-grid { grid-template-columns: 1fr; }
   }
+  /* ---------- Group leaderboard ---------- */
+  .tap-hint { font-size: 11.5px; color: var(--ink-soft); text-align: center; margin-bottom: 12px; font-style: italic; }
+  .group-row {
+    border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px;
+    background: var(--white); overflow: hidden; transition: border-color 0.15s ease;
+  }
+  .group-row.is-mine { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(31,156,140,0.10); }
+  .group-row-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px; cursor: pointer; }
+  .group-row-head:hover { background: var(--paper); }
+  .group-rank { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px; width: 28px; text-align: center; color: var(--ink-soft); flex-shrink: 0; }
+  .group-main { flex: 1; min-width: 0; }
+  .group-name { font-weight: 700; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .you-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; background: var(--teal); color: var(--white); padding: 2px 6px; border-radius: 4px; }
+  .group-meta { font-size: 11.5px; color: var(--ink-soft); margin: 3px 0 7px; }
+  .group-bar-track { height: 7px; border-radius: 4px; background: #EDEFF1; overflow: hidden; }
+  .group-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--teal), #38C6B3); transition: width 0.5s ease; }
+  .group-km { text-align: right; flex-shrink: 0; }
+  .group-km .v { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; color: var(--ink); line-height: 1; }
+  .group-km .u { font-size: 9.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+
+  /* ---------- Member list ---------- */
+  .member-list { border-top: 1px solid var(--line); background: var(--paper); padding: 6px 14px 12px; }
+  .member-list.standalone { border: 1px solid var(--line); border-radius: 12px; background: var(--white); padding: 8px 14px 12px; }
+  .member-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .member-row:last-child { border-bottom: none; }
+  .member-row.is-me .member-name { color: #146B5F; }
+  .member-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: #E4E7EA; color: var(--ink-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11.5px;
+  }
+  .member-row.is-me .member-avatar { background: var(--teal); color: var(--white); }
+  .member-body { flex: 1; min-width: 0; }
+  .member-name { font-weight: 600; font-size: 13px; color: var(--ink); margin-bottom: 5px; }
+  .target-tick { color: var(--teal); font-weight: 700; }
+  .member-bar-track { height: 5px; border-radius: 3px; background: #E3E7EA; overflow: hidden; }
+  .member-bar-fill { height: 100%; border-radius: 3px; background: var(--gold); transition: width 0.5s ease; }
+  .member-bar-fill.done { background: var(--teal); }
+  .member-km { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12.5px; color: var(--ink); flex-shrink: 0; text-align: right; }
+  .member-km span { font-size: 9px; color: var(--ink-soft); margin-left: 2px; }
+  .member-empty { padding: 14px 0; text-align: center; color: var(--ink-soft); font-size: 12.5px; }
+
+  /* ---------- Full group (registration) ---------- */
+  .cat-option.is-full { opacity: 0.5; cursor: not-allowed; }
+  .cat-option.is-full:hover { border-color: var(--line); }
+
+  /* ---------- Target note ---------- */
+  .target-note { margin-top: 10px; font-size: 13px; color: var(--ink); line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -540,24 +589,43 @@
 <script>
 (function () {
   // ============ SUPABASE CONNECTION ============
-  // These are safe to have in the page: the publishable key only grants
-  // what Row Level Security explicitly allows (read the board, register,
-  // log a run). The admin passcode is never exposed here — it's verified
-  // inside the database.
+  // Safe to expose: the publishable key only permits what Row Level
+  // Security allows (read the board, register, log a run). The admin
+  // passcode is verified inside the database and never sent here.
   const SUPABASE_URL = 'https://aqkxtssiivmjrnoghxta.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_BZziH98VbogU_zYgukbQyg_rybCODGm';
   // ==============================================
 
   const root = document.getElementById('app-root');
-  const PROFILE_KEY = 'runChallengeProfileV2';
+  const PROFILE_KEY = 'runChallengeProfileV3';
   const ADMIN_KEY = 'runChallengeAdminPass';
 
-  const CATEGORIES = [
-    { id: 'Beginner', emoji: '🌱', short: 'Starting out / comfortable pace', desc: 'New to running? Start here and build the habit.' },
-    { id: 'Intermediate', emoji: '🏃', short: 'Regular runner / ready to push', desc: 'Regular runner, ready to push a bit further.' },
-    { id: 'Expert', emoji: '🔥', short: 'Experienced / performance focused', desc: 'Experienced runner — go for it.' }
-  ];
+  function loadProfile() { try { const r = localStorage.getItem(PROFILE_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
+  function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
 
+  let state = {
+    view: 'landing',        // landing | summary | register | welcome | app
+    appTab: 'dashboard',    // dashboard | leaderboard | admin
+    profile: loadProfile(),
+    registerDraft: null,    // { employeeId, name, groupId }
+    groupStats: null,
+    availableGroups: [],
+    expandedGroupId: null,
+    heroKm: 0,
+    adminData: null,
+    formStatus: null,
+    loading: false
+  };
+
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function todayStr() { return new Date().toISOString().slice(0, 10); }
+  function initials(name) {
+    const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return '??';
+    if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+    return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+  }
   function emblem(size) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" class="emblem" aria-hidden="true">
       <circle cx="50" cy="50" r="45" fill="#0B2A4A"/>
@@ -567,32 +635,7 @@
     </svg>`;
   }
 
-  function loadProfile() { try { const r = localStorage.getItem(PROFILE_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
-  function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
-  function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
-
-  let state = {
-    view: 'landing', // landing | login | register | app
-    appTab: 'dashboard', // dashboard | leaderboard | admin
-    profile: loadProfile(),
-    loginId: '',
-    registerDraft: null, // {employeeId, name, category}
-    catFilter: 'all',
-    weeklyStats: null,
-    heroKm: null,
-    stravaConnected: false,
-    myCatStats: null,
-    viewerSummary: null,
-    adminData: null,
-    adminPasscodeInput: '',
-    formStatus: null,
-    loading: false
-  };
-
-  function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
-
-  // ---------- Supabase calls ----------
+  // ---------- Supabase ----------
   async function sbFetch(path, options) {
     const opts = options || {};
     const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -604,97 +647,127 @@
       }, opts.headers || {}),
       body: opts.body ? JSON.stringify(opts.body) : undefined
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error('Request failed (' + res.status + '): ' + text);
-    }
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error('Request failed (' + res.status + '): ' + await res.text());
+    const t = await res.text();
+    return t ? JSON.parse(t) : null;
   }
+  function sbRpc(fn, args) { return sbFetch('rpc/' + fn, { method: 'POST', body: args || {} }); }
 
-  function sbRpc(fnName, args) {
-    return sbFetch('rpc/' + fnName, { method: 'POST', body: args || {} });
-  }
-
-  async function lookupEmployee(employeeId) {
-    const rows = await sbFetch('employees?employee_id=eq.' + encodeURIComponent(employeeId) + '&select=employee_id,name,category');
-    if (rows && rows.length > 0) {
-      return { found: true, employee: { employeeId: rows[0].employee_id, name: rows[0].name, category: rows[0].category } };
-    }
-    return { found: false };
-  }
-
-  async function registerEmployee(employeeId, name, category) {
-    await sbFetch('employees', {
-      method: 'POST',
-      headers: { 'Prefer': 'return=minimal' },
-      body: { employee_id: employeeId, name: name, category: category }
-    });
-    return { success: true };
-  }
-
-  async function logRun(employeeId, date, distanceKm, minutes) {
-    await sbFetch('entries', {
-      method: 'POST',
-      headers: { 'Prefer': 'return=minimal' },
-      body: { employee_id: employeeId, run_date: date, distance_km: distanceKm, minutes: minutes }
-    });
-    return { success: true };
-  }
-
-  function loadWeeklyStats(category) {
-    return sbRpc('weekly_stats', { p_category: category || 'all' });
-  }
-
-  async function loadViewerSummary() {
-    const overall = await loadWeeklyStats('all');
-    const cats = await Promise.all(['Beginner', 'Intermediate', 'Expert'].map(c => loadWeeklyStats(c)));
-    const allTime = await sbFetch('entries?select=distance_km');
-    const allTimeKm = (allTime || []).reduce((s, r) => s + Number(r.distance_km || 0), 0);
-    return {
-      config: overall.config,
-      thisWeek: {
-        rangeStart: overall.rangeStart, rangeEnd: overall.rangeEnd,
-        companyKm: overall.companyKm, participants: overall.participants,
-        top10: overall.top10
-      },
-      categories: cats.map((s, i) => ({
-        category: ['Beginner', 'Intermediate', 'Expert'][i],
-        companyKm: s.companyKm, participants: s.participants, top3: (s.top10 || []).slice(0, 3)
-      })),
-      allTimeKm: Math.round(allTimeKm * 100) / 100
-    };
-  }
-
-  function loadAdmin(passcode) {
-    return sbRpc('admin_data', { p_passcode: passcode });
-  }
-
-  function saveConfig(passcode, cfg) {
+  function lookupEmployee(id) { return sbRpc('lookup_employee', { p_employee_id: id }); }
+  function loadAvailableGroups() { return sbRpc('available_groups', {}); }
+  function registerEmployee(id, name, groupId) { return sbRpc('register_employee', { p_employee_id: id, p_name: name, p_group_id: groupId }); }
+  function loadGroupStats() { return sbRpc('group_stats', {}); }
+  function loadAdmin(pass) { return sbRpc('admin_data', { p_passcode: pass }); }
+  function renameGroup(pass, id, name) { return sbRpc('rename_group', { p_passcode: pass, p_group_id: id, p_new_name: name }); }
+  function saveConfig(pass, cfg) {
     return sbRpc('update_config', {
-      p_passcode: passcode,
-      p_title: cfg.title,
-      p_start_date: cfg.startDate || null,
-      p_end_date: cfg.endDate || null,
-      p_company_target_km: Number(cfg.companyTargetKm) || null,
-      p_beginner_km: Number(cfg.beginnerKm) || null,
-      p_intermediate_km: Number(cfg.intermediateKm) || null,
-      p_expert_km: Number(cfg.expertKm) || null
+      p_passcode: pass, p_title: cfg.title,
+      p_start_date: cfg.startDate || null, p_end_date: cfg.endDate || null,
+      p_per_person_target_km: Number(cfg.perPersonTargetKm) || null,
+      p_max_group_size: Number(cfg.maxGroupSize) || null
     });
+  }
+  async function logRun(id, date, km, minutes) {
+    await sbFetch('entries', {
+      method: 'POST', headers: { 'Prefer': 'return=minimal' },
+      body: { employee_id: id, run_date: date, distance_km: km, minutes: minutes }
+    });
+    return { success: true };
   }
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
   }
 
+  // ---------- Countdown ----------
+  let countdownTimer = null;
+  function clearCountdown() { if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; } }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  function computeCountdown(cfg) {
+    if (!cfg || !cfg.endDate) return null;
+    const end = new Date(cfg.endDate + 'T23:59:59');
+    if (isNaN(end.getTime())) return null;
+    const start = cfg.startDate ? new Date(cfg.startDate + 'T00:00:00') : null;
+    const now = new Date();
+    const ms = end - now;
+    let pct = 0;
+    if (start && !isNaN(start.getTime())) {
+      const total = end - start;
+      pct = total > 0 ? Math.max(0, Math.min(100, ((now - start) / total) * 100)) : 0;
+    }
+    const label = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (ms <= 0) return { ended: true, pct: 100, endLabel: label };
+    return {
+      ended: false, pct, endLabel: label,
+      days: Math.floor(ms / 86400000),
+      hours: Math.floor((ms % 86400000) / 3600000),
+      mins: Math.floor((ms % 3600000) / 60000),
+      secs: Math.floor((ms % 60000) / 1000)
+    };
+  }
+
+  function renderCountdownHtml(cd) {
+    if (!cd) return '';
+    if (cd.ended) {
+      return `<div class="countdown-card">
+        <div class="countdown-top"><span class="countdown-label">Challenge Complete</span><span class="countdown-ends">Ended ${escapeHtml(cd.endLabel)}</span></div>
+        <div class="countdown-ended">🏁 Final results are in</div>
+        <div class="cd-progress-track"><div class="cd-progress-fill" style="width:100%"></div></div>
+      </div>`;
+    }
+    return `<div class="countdown-card">
+      <div class="countdown-top"><span class="countdown-label">Time Remaining</span><span class="countdown-ends">Ends ${escapeHtml(cd.endLabel)}</span></div>
+      <div class="countdown-units">
+        <div class="cd-unit"><div class="v" id="cd-days">${cd.days}</div><div class="l">Days</div></div>
+        <div class="cd-unit"><div class="v" id="cd-hours">${pad2(cd.hours)}</div><div class="l">Hours</div></div>
+        <div class="cd-unit"><div class="v" id="cd-mins">${pad2(cd.mins)}</div><div class="l">Mins</div></div>
+        <div class="cd-unit"><div class="v" id="cd-secs">${pad2(cd.secs)}</div><div class="l">Secs</div></div>
+      </div>
+      <div class="cd-progress-track">
+        <div class="cd-progress-fill" id="cd-fill" style="width:${cd.pct}%"></div>
+        <div class="cd-progress-dot" id="cd-dot" style="left:${cd.pct}%"></div>
+      </div>
+    </div>`;
+  }
+
+  function startCountdown(cfg) {
+    clearCountdown();
+    if (!cfg || !cfg.endDate) return;
+    countdownTimer = setInterval(() => {
+      const cd = computeCountdown(cfg);
+      const el = document.getElementById('cd-days');
+      if (!el || !cd) { clearCountdown(); return; }
+      if (cd.ended) { clearCountdown(); goToTab(state.appTab); return; }
+      el.textContent = cd.days;
+      document.getElementById('cd-hours').textContent = pad2(cd.hours);
+      document.getElementById('cd-mins').textContent = pad2(cd.mins);
+      document.getElementById('cd-secs').textContent = pad2(cd.secs);
+      const f = document.getElementById('cd-fill'), d = document.getElementById('cd-dot');
+      if (f) f.style.width = cd.pct + '%';
+      if (d) d.style.left = cd.pct + '%';
+    }, 1000);
+  }
+
+  function animateCount(el, to, duration) {
+    const start = performance.now(), isDec = to % 1 !== 0;
+    function tick(now) {
+      const p = Math.min(1, (now - start) / duration);
+      const v = to * (1 - Math.pow(1 - p, 3));
+      el.textContent = isDec ? v.toFixed(1) : Math.round(v).toLocaleString();
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
   // ---------- Bootstrapping ----------
   async function init() {
     if (state.profile) {
-      // Re-verify against backend (source of truth), fall back to cached copy if offline
       try {
-        const result = await lookupEmployee(state.profile.employeeId);
-        if (result.found) { state.profile = result.employee; saveProfile(result.employee); }
-      } catch (e) { /* keep cached profile */ }
+        const r = await lookupEmployee(state.profile.employeeId);
+        if (r && r.found) { state.profile = r.employee; saveProfile(r.employee); }
+        else { clearProfile(); state.profile = null; state.view = 'landing'; render(); return; }
+      } catch (e) { /* offline: keep cached profile */ }
       state.view = 'app';
       await goToTab('dashboard');
     } else {
@@ -708,27 +781,9 @@
     state.loading = true;
     render();
     try {
-      if (tab === 'dashboard' || tab === 'leaderboard') {
-        state.weeklyStats = await loadWeeklyStats(tab === 'leaderboard' ? state.catFilter : (state.profile ? state.profile.category : 'all'));
-      }
-      if (tab === 'leaderboard' && state.profile) {
-        // My Performance always reflects the person's OWN category,
-        // regardless of which filter they're viewing.
-        state.myCatStats = state.catFilter === state.profile.category
-          ? state.weeklyStats
-          : await loadWeeklyStats(state.profile.category);
-      }
-      if (tab === 'dashboard' && state.profile) {
-        try {
-          const st = await loadStravaStatus(state.profile.employeeId);
-          state.stravaConnected = !!(st && st.connected);
-        } catch (e) { /* Strava module may not be installed — card just shows disconnected */ }
-      }
-      // Hero always shows the all-category company total, regardless of tab
-      const heroStats = await loadWeeklyStats('all');
-      state.heroKm = heroStats.companyKm;
-      state.heroStats = heroStats;
-    } catch (e) { state.weeklyStats = null; }
+      state.groupStats = await loadGroupStats();
+      state.heroKm = state.groupStats.companyKm;
+    } catch (e) { state.groupStats = null; }
     state.loading = false;
     render();
   }
@@ -736,32 +791,16 @@
   // ---------- Render root ----------
   function render() {
     if (state.view === 'landing') return renderLanding();
-    if (state.view === 'summary') return renderSummaryView();
+    if (state.view === 'summary') return renderSummary();
     if (state.view === 'register') return renderRegister();
     if (state.view === 'welcome') return renderWelcome();
     return renderApp();
   }
 
-  function animateCount(el, to, duration) {
-    const start = performance.now();
-    const from = 0;
-    const isDecimal = to % 1 !== 0;
-    function tick(now) {
-      const progress = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      const value = from + (to - from) * eased;
-      el.textContent = isDecimal ? value.toFixed(1) : Math.round(value).toLocaleString();
-      if (progress < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
-
+  // ---------- Landing ----------
   function renderLanding() {
-    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const runnerMotion = reduceMotion ? '' : `
-      <circle r="5" fill="#38C6B3">
-        <animateMotion dur="7s" repeatCount="indefinite" path="M170,30 A150,55 0 1 1 169,30 Z" />
-      </circle>`;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const runner = reduce ? '' : `<circle r="5" fill="#38C6B3"><animateMotion dur="7s" repeatCount="indefinite" path="M170,30 A150,55 0 1 1 169,30 Z" /></circle>`;
 
     root.innerHTML = `
       <div class="landing-dark">
@@ -770,7 +809,7 @@
         <div class="bg-track" style="top:20%;opacity:0.35;">
           <svg viewBox="0 0 340 110" class="bg-track-svg" aria-hidden="true">
             <ellipse cx="170" cy="55" rx="150" ry="45" fill="none" stroke="rgba(227,166,47,0.28)" stroke-width="2" stroke-dasharray="3 9" />
-            ${runnerMotion}
+            ${runner}
           </svg>
         </div>
         <div class="landing-content">
@@ -778,13 +817,11 @@
             <div class="logo-tile">${emblem(30)}</div>
             <div class="brand-name">Broadcom Run 2026</div>
           </div>
-
-          <div class="hero-eyebrow landing-fade d2">Move • Compete • Achieve</div>
-          <h1 class="hero-headline landing-fade d2">Every kilometre <span class="accent-grad">moves the team forward.</span></h1>
-          <p class="sub-dark landing-fade d3">Sign in, choose your running category, log your activity, and climb the leaderboard with your colleagues.</p>
+          <div class="hero-eyebrow landing-fade d2">One Team • One Challenge</div>
+          <h1 class="hero-headline landing-fade d2">Every kilometre <span class="accent-grad">moves your group forward.</span></h1>
+          <p class="sub-dark landing-fade d3">Join a group, log your runs, and push your team up the leaderboard together.</p>
           <p class="hero-footnote landing-fade d3">Corporate Wellness Challenge • Internal Use</p>
-
-          <div class="landing-fade d3" id="live-ticker-slot"></div>
+          <div class="landing-fade d3" id="ticker-slot"></div>
 
           <div class="quickstart-card landing-fade d4">
             <div class="card-top-bar"></div>
@@ -794,207 +831,245 @@
             </div>
             <div class="step-indicator"><div class="step-seg active"></div><div class="step-seg"></div><div class="step-seg"></div></div>
             <div class="card-heading">Welcome back 👋</div>
-            <div class="card-sub">Log in with your employee account to enter the challenge.</div>
+            <div class="card-sub">Log in with your Employee ID to enter the challenge.</div>
             <div class="field-dark">
-              <label for="quick-login-id">Employee ID</label>
+              <label for="login-id">Employee ID</label>
               <div class="input-wrap">
-                <input id="quick-login-id" type="text" placeholder="e.g. BRCM10234" />
+                <input id="login-id" type="text" placeholder="e.g. BRCM10234" autocomplete="off" />
                 <span class="input-icon">👤</span>
               </div>
             </div>
-            <button class="cta-gradient" id="quick-login-btn">Enter the Challenge →</button>
-            <div id="quick-login-status"></div>
+            <button class="cta-gradient" id="login-btn">Enter the Challenge →</button>
+            <div id="login-status"></div>
           </div>
 
-          <button class="link-btn-dark landing-fade d5" id="btn-summary">View this week's summary instead</button>
+          <button class="link-btn-dark landing-fade d5" id="summary-btn">View group standings instead</button>
         </div>
-      </div>
-    `;
+      </div>`;
 
-    root.querySelector('#btn-summary').addEventListener('click', async () => {
+    root.querySelector('#summary-btn').addEventListener('click', async () => {
       state.view = 'summary'; state.loading = true; render();
-      try { state.viewerSummary = await loadViewerSummary(); } catch (e) { state.viewerSummary = null; }
+      try { state.groupStats = await loadGroupStats(); } catch (e) { state.groupStats = null; }
       state.loading = false; render();
     });
 
-    root.querySelector('#quick-login-btn').addEventListener('click', async () => {
-      const id = root.querySelector('#quick-login-id').value.trim();
-      const statusEl = root.querySelector('#quick-login-status');
+    root.querySelector('#login-btn').addEventListener('click', doLogin);
+    root.querySelector('#login-id').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+    async function doLogin() {
+      const id = root.querySelector('#login-id').value.trim();
+      const statusEl = root.querySelector('#login-status');
       if (!id) { statusEl.innerHTML = '<div class="error-msg">Please enter your Employee ID.</div>'; return; }
-      const btn = root.querySelector('#quick-login-btn'); btn.disabled = true; btn.textContent = 'Checking…';
+      const btn = root.querySelector('#login-btn');
+      btn.disabled = true; btn.textContent = 'Checking…';
       try {
-        const result = await lookupEmployee(id);
-        if (result.found) {
-          state.profile = result.employee;
-          saveProfile(result.employee);
-          state.view = 'app';
-          await goToTab('dashboard');
+        const r = await lookupEmployee(id);
+        if (r && r.found) {
+          state.profile = r.employee; saveProfile(r.employee);
+          state.view = 'app'; await goToTab('dashboard');
         } else {
-          state.registerDraft = { employeeId: id, name: '', category: null };
-          state.view = 'register';
-          render();
+          state.registerDraft = { employeeId: id, name: '', groupId: null };
+          state.availableGroups = await loadAvailableGroups();
+          state.view = 'register'; render();
         }
       } catch (e) {
         statusEl.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
         btn.disabled = false; btn.textContent = 'Enter the Challenge →';
       }
-    });
+    }
 
-    // Fetch a live snapshot for the ticker without blocking the initial paint
-    loadViewerSummary().then(s => {
-      const slot = document.getElementById('live-ticker-slot');
+    loadGroupStats().then(s => {
+      const slot = document.getElementById('ticker-slot');
       if (!slot || !s) return;
-      slot.innerHTML = `
-        <div class="live-ticker">
-          <span class="dot"></span>
-          <span><span class="num" id="ticker-km">0</span> km logged this week</span>
-          <span style="opacity:0.5;">·</span>
-          <span><span class="num" id="ticker-people">0</span> runners active</span>
-        </div>
-      `;
-      const kmEl = document.getElementById('ticker-km');
-      const peopleEl = document.getElementById('ticker-people');
-      if (kmEl) animateCount(kmEl, s.thisWeek.companyKm, 900);
-      if (peopleEl) animateCount(peopleEl, s.thisWeek.participants, 900);
-    }).catch(() => { /* ticker just stays hidden if this fails, non-critical */ });
+      slot.innerHTML = `<div class="live-ticker"><span class="dot"></span>
+        <span><span class="num" id="tk-km">0</span> km logged</span>
+        <span style="opacity:0.5;">·</span>
+        <span><span class="num" id="tk-people">0</span> runners</span></div>`;
+      animateCount(document.getElementById('tk-km'), s.companyKm, 900);
+      animateCount(document.getElementById('tk-people'), s.totalRunners, 900);
+    }).catch(() => {});
   }
 
-  function renderWelcome() {
-    const p = state.profile;
-    root.innerHTML = `
-      <div class="welcome-screen">
-        <div class="welcome-check-wrap">
-          <div class="welcome-check-halo"></div>
-          <div class="welcome-check">✓</div>
-        </div>
-        <h1 class="welcome-h1">Welcome to the challenge!</h1>
-        <p class="welcome-sub"><strong>${escapeHtml(p.employeeId)}</strong> has joined the <strong>${escapeHtml(p.category)}</strong> category.<br />Your running dashboard is ready.</p>
-        <button class="cta-gradient" id="welcome-go">Open Running Dashboard →</button>
-        <button class="welcome-alt" id="welcome-switch">Use another Employee ID</button>
-      </div>
-    `;
-    root.querySelector('#welcome-go').addEventListener('click', async () => {
-      state.view = 'app';
-      await goToTab('dashboard');
-    });
-    root.querySelector('#welcome-switch').addEventListener('click', () => {
-      clearProfile();
-      state.profile = null;
-      state.registerDraft = null;
-      state.view = 'landing';
-      render();
-    });
-  }
-
+  // ---------- Register ----------
   function renderRegister() {
-    const draft = state.registerDraft;
-    const targets = (state.weeklyStats && state.weeklyStats.config && state.weeklyStats.config.categoryTargets) || { Beginner: 15, Intermediate: 30, Expert: 50 };
+    const d = state.registerDraft;
+    const groups = state.availableGroups || [];
     root.innerHTML = `
       <div class="reg-screen">
         <div class="success-tile">✓</div>
-        <div class="id-chip"><span class="lbl">Employee</span> ${escapeHtml(draft.employeeId)}</div>
+        <div class="id-chip"><span class="lbl">Employee</span> ${escapeHtml(d.employeeId)}</div>
         <h1 class="reg-h1">You're in.</h1>
-        <p class="reg-sub">Tell us your name and choose the category that best matches your current running level.</p>
+        <p class="reg-sub">Tell us your name and pick the group you want to run with.</p>
 
         <div class="field" style="margin-bottom:24px;">
           <label for="reg-name">Your Name</label>
-          <input id="reg-name" type="text" placeholder="e.g. Kean Chye" value="${draft.name ? escapeHtml(draft.name) : ''}" />
+          <input id="reg-name" type="text" placeholder="e.g. Kean Chye" value="${escapeHtml(d.name)}" />
         </div>
 
-        <div class="section-label">Select your category</div>
-        <div id="cat-grid">
-          ${CATEGORIES.map(c => `
-            <div class="cat-option ${draft.category === c.id ? 'selected' : ''}" data-cat="${c.id}" role="button" tabindex="0">
-              <div class="cat-icon-tile">${c.emoji}</div>
+        <div class="section-label">Choose your group</div>
+        <div id="group-grid">
+          ${groups.map(g => `
+            <div class="cat-option ${d.groupId === g.id ? 'selected' : ''} ${g.isFull ? 'is-full' : ''}"
+                 data-gid="${g.id}" ${g.isFull ? '' : 'role="button" tabindex="0"'}>
+              <div class="cat-icon-tile">${g.isFull ? '🔒' : '👥'}</div>
               <div class="cat-option-body">
-                <div class="cat-option-name">${c.id}</div>
-                <div class="cat-option-desc">${c.short} · ${targets[c.id]} km target</div>
+                <div class="cat-option-name">${escapeHtml(g.name)}</div>
+                <div class="cat-option-desc">${g.memberCount} / ${g.maxSize} members${g.isFull ? ' · full' : ''}</div>
               </div>
               <div class="cat-radio"></div>
             </div>`).join('')}
         </div>
 
-        <button class="back-btn-wide" id="back-link">← Back</button>
+        <button class="back-btn-wide" id="back-btn">← Back</button>
         <button class="cta-gradient" id="reg-btn">Join Challenge →</button>
         <div id="reg-status"></div>
-      </div>
-    `;
-    root.querySelector('#back-link').addEventListener('click', (e) => { e.preventDefault(); state.view = 'landing'; render(); });
+      </div>`;
+
+    root.querySelector('#back-btn').addEventListener('click', () => { state.view = 'landing'; render(); });
     root.querySelectorAll('.cat-option').forEach(card => {
+      if (card.classList.contains('is-full')) return;
       card.addEventListener('click', () => {
-        const nameEl = root.querySelector('#reg-name');
-        if (nameEl) state.registerDraft.name = nameEl.value;
-        state.registerDraft.category = card.dataset.cat;
+        state.registerDraft.name = root.querySelector('#reg-name').value;
+        state.registerDraft.groupId = Number(card.dataset.gid);
         render();
       });
     });
+
     root.querySelector('#reg-btn').addEventListener('click', async () => {
       const name = root.querySelector('#reg-name').value.trim();
       const statusEl = root.querySelector('#reg-status');
       if (!name) { statusEl.innerHTML = '<div class="error-msg">Please enter your name.</div>'; return; }
-      if (!state.registerDraft.category) { statusEl.innerHTML = '<div class="error-msg">Please pick a category.</div>'; return; }
+      if (!state.registerDraft.groupId) { statusEl.innerHTML = '<div class="error-msg">Please pick a group.</div>'; return; }
 
-      const btn = root.querySelector('#reg-btn'); btn.disabled = true; btn.textContent = 'Setting up…';
-      await registerEmployee(state.registerDraft.employeeId, name, state.registerDraft.category);
-      await new Promise(r => setTimeout(r, 1200)); // give Apps Script a moment to write
+      const btn = root.querySelector('#reg-btn');
+      btn.disabled = true; btn.textContent = 'Joining…';
       try {
-        const result = await lookupEmployee(state.registerDraft.employeeId);
-        if (result.found) {
-          state.profile = result.employee;
-          saveProfile(result.employee);
-          state.view = 'welcome';
+        const res = await registerEmployee(state.registerDraft.employeeId, name, state.registerDraft.groupId);
+        if (res && res.success === false) {
+          statusEl.innerHTML = '<div class="error-msg">' + escapeHtml(res.error) + '</div>';
+          state.availableGroups = await loadAvailableGroups();
+          btn.disabled = false; btn.textContent = 'Join Challenge →';
           render();
+          return;
+        }
+        const look = await lookupEmployee(state.registerDraft.employeeId);
+        if (look && look.found) {
+          state.profile = look.employee; saveProfile(look.employee);
+          state.view = 'welcome'; render();
         } else {
-          statusEl.innerHTML = '<div class="error-msg">Registration may not have saved — please try again.</div>';
+          statusEl.innerHTML = '<div class="error-msg">Registration did not save — please try again.</div>';
           btn.disabled = false; btn.textContent = 'Join Challenge →';
         }
       } catch (e) {
-        statusEl.innerHTML = '<div class="error-msg">Could not confirm registration — please try again.</div>';
+        statusEl.innerHTML = '<div class="error-msg">Could not reach the server — please try again.</div>';
         btn.disabled = false; btn.textContent = 'Join Challenge →';
       }
     });
   }
 
-  function renderSummaryView() {
-    root.innerHTML = `<div class="brandbar"><div class="wordmark">BROADCOM<small>Running Challenge</small></div><div class="spacer"></div><a class="top-link" id="back-link" href="#">← Back</a></div><div class="panel" id="summary-panel"></div>`;
-    root.querySelector('#back-link').addEventListener('click', (e) => { e.preventDefault(); state.view = 'landing'; render(); });
-    const panel = root.querySelector('#summary-panel');
-
-    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading summary…</div>'; return; }
-    const s = state.viewerSummary;
-    if (!s) { panel.innerHTML = '<div class="empty-state">Could not load the summary right now.</div>'; return; }
-
-    const catColors = { Beginner: '#1F9C8C', Intermediate: '#E3A62F', Expert: '#A32E2E' };
-
-    panel.innerHTML = `
-      <div class="board-title" style="font-size:16px;">This Week — ${escapeHtml(s.thisWeek.rangeStart)} to ${escapeHtml(s.thisWeek.rangeEnd)}</div>
-      <div class="stat-row">
-        <div class="stat-card"><div class="num display">${s.thisWeek.companyKm.toFixed(1)}</div><div class="label">km this week</div></div>
-        <div class="stat-card"><div class="num display">${s.thisWeek.participants}</div><div class="label">Active this week</div></div>
-        <div class="stat-card"><div class="num display">${s.allTimeKm.toFixed(1)}</div><div class="label">Total km all-time</div></div>
-      </div>
-
-      <div class="admin-section">
-        <h4>Participation by Category</h4>
-        ${s.categories.map(c => `
-          <div class="dist-row">
-            <div class="dist-label">${escapeHtml(c.category)}</div>
-            <div class="dist-bar-track"><div class="dist-bar-fill" style="width:${Math.min(100, c.participants * 4)}%;background:${catColors[c.category]}"></div></div>
-            <div class="dist-count">${c.participants}</div>
-          </div>`).join('')}
-      </div>
-
-      <div class="board-title">Top 10 Overall — This Week</div>
-      ${s.thisWeek.top10.length === 0 ? '<div class="empty-state">No runs logged yet this week.</div>' : renderBoardRows(s.thisWeek.top10)}
-    `;
+  // ---------- Welcome ----------
+  function renderWelcome() {
+    const p = state.profile;
+    root.innerHTML = `
+      <div class="welcome-screen">
+        <div class="welcome-check-wrap"><div class="welcome-check-halo"></div><div class="welcome-check">✓</div></div>
+        <h1 class="welcome-h1">Welcome to the challenge!</h1>
+        <p class="welcome-sub"><strong>${escapeHtml(p.name)}</strong> has joined <strong>${escapeHtml(p.groupName)}</strong>.<br />Your running dashboard is ready.</p>
+        <button class="cta-gradient" id="go-btn">Open Running Dashboard →</button>
+        <button class="welcome-alt" id="switch-btn">Use another Employee ID</button>
+      </div>`;
+    root.querySelector('#go-btn').addEventListener('click', async () => { state.view = 'app'; await goToTab('dashboard'); });
+    root.querySelector('#switch-btn').addEventListener('click', () => {
+      clearProfile(); state.profile = null; state.registerDraft = null; state.view = 'landing'; render();
+    });
   }
 
+  // ---------- Shared: group leaderboard rows ----------
+  function renderGroupRows(groups, opts) {
+    const o = opts || {};
+    const myGroupId = state.profile ? state.profile.groupId : null;
+    const medals = ['🥇', '🥈', '🥉'];
+    return groups.map((g, i) => {
+      const isMine = g.id === myGroupId;
+      const pct = g.groupTargetKm > 0 ? Math.min(100, (g.totalKm / g.groupTargetKm) * 100) : 0;
+      const expanded = state.expandedGroupId === g.id;
+      return `
+        <div class="group-row ${isMine ? 'is-mine' : ''}" data-gid="${g.id}">
+          <div class="group-row-head">
+            <span class="group-rank">${i < 3 ? medals[i] : (i + 1)}</span>
+            <div class="group-main">
+              <div class="group-name">${escapeHtml(g.name)}${isMine ? '<span class="you-tag">YOUR GROUP</span>' : ''}</div>
+              <div class="group-meta">${g.memberCount} member${g.memberCount === 1 ? '' : 's'} · ${g.membersHitTarget}/${g.memberCount} hit target</div>
+              <div class="group-bar-track"><div class="group-bar-fill" style="width:${pct}%"></div></div>
+            </div>
+            <div class="group-km"><div class="v">${g.totalKm.toFixed(1)}</div><div class="u">km</div></div>
+          </div>
+          ${expanded ? `<div class="member-list">
+            ${g.members.length === 0 ? '<div class="member-empty">No members yet.</div>' :
+              g.members.map(m => `
+                <div class="member-row ${state.profile && m.employeeId === state.profile.employeeId ? 'is-me' : ''}">
+                  <div class="member-avatar">${escapeHtml(initials(m.name))}</div>
+                  <div class="member-body">
+                    <div class="member-name">${escapeHtml(m.name)} ${m.hitTarget ? '<span class="target-tick">✓</span>' : ''}</div>
+                    <div class="member-bar-track"><div class="member-bar-fill ${m.hitTarget ? 'done' : ''}" style="width:${m.pct}%"></div></div>
+                  </div>
+                  <div class="member-km">${m.km.toFixed(1)}<span>km</span></div>
+                </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  function wireGroupRows(panel) {
+    panel.querySelectorAll('.group-row').forEach(row => {
+      row.querySelector('.group-row-head').addEventListener('click', () => {
+        const gid = Number(row.dataset.gid);
+        state.expandedGroupId = state.expandedGroupId === gid ? null : gid;
+        render();
+      });
+    });
+  }
+
+  // ---------- Public summary (no login) ----------
+  function renderSummary() {
+    root.innerHTML = `
+      <div class="brandbar"><div class="wordmark">BROADCOM<small>Running Challenge</small></div><div class="spacer"></div><a class="top-link" id="back-link" href="#">← Back</a></div>
+      <div class="panel" id="panel"></div>`;
+    root.querySelector('#back-link').addEventListener('click', e => { e.preventDefault(); state.view = 'landing'; render(); });
+    const panel = root.querySelector('#panel');
+
+    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading standings…</div>'; return; }
+    const s = state.groupStats;
+    if (!s) { panel.innerHTML = '<div class="empty-state">Could not load standings right now.</div>'; return; }
+
+    const cd = computeCountdown(s.config);
+    panel.innerHTML = `
+      <div class="board-header">
+        <span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>
+        <h2 class="board-h1">Group scoreboard</h2>
+        <p class="board-h1-sub">Ranked by total kilometres · ${s.perPersonTargetKm} km target per person</p>
+      </div>
+      ${renderCountdownHtml(cd)}
+      <div class="stat-strip">
+        <div class="stat-cell"><div class="num">${s.groups.length}</div><div class="label">Groups</div></div>
+        <div class="stat-cell"><div class="num">${s.totalRunners}</div><div class="label">Runners</div></div>
+        <div class="stat-cell"><div class="num">${s.companyKm.toFixed(1)}</div><div class="label">Total km</div></div>
+      </div>
+      <div class="tap-hint">Tap a group to see its members</div>
+      ${renderGroupRows(s.groups)}`;
+    wireGroupRows(panel);
+    startCountdown(s.config);
+  }
+
+  // ---------- App shell ----------
   function renderApp() {
-    const stats = state.weeklyStats;
-    const companyKm = (state.heroKm !== null && state.heroKm !== undefined) ? state.heroKm : 0;
-    const targetKm = (stats && stats.config && stats.config.companyTargetKm) || 2000;
-    const pct = Math.min(100, (companyKm / targetKm) * 100);
-    const title = (stats && stats.config && stats.config.title) || 'Broadcom Running Challenge';
+    const s = state.groupStats;
+    const cfg = s ? s.config : {};
+    const title = cfg.title || 'Broadcom Running Challenge';
+    const myGroup = s && state.profile ? s.groups.find(g => g.id === state.profile.groupId) : null;
+    const target = s ? s.perPersonTargetKm : 50;
+    const groupTarget = myGroup ? myGroup.groupTargetKm : 0;
+    const pct = groupTarget > 0 ? Math.min(100, (myGroup.totalKm / groupTarget) * 100) : 0;
 
     root.innerHTML = `
       <div class="brandbar">
@@ -1004,146 +1079,61 @@
       </div>
       <div class="hero">
         <div class="hero-top">
-          <div><div class="hero-title display">${escapeHtml(title)}</div><div class="hero-sub">Company-wide progress this week</div></div>
-          <div class="hero-stat"><div class="num display">${companyKm.toFixed(1)} km</div><div class="label">Logged this week</div></div>
+          <div><div class="hero-title display">${escapeHtml(title)}</div><div class="hero-sub">${myGroup ? escapeHtml(myGroup.name) + ' progress' : 'Challenge progress'}</div></div>
+          <div class="hero-stat"><div class="num display">${myGroup ? myGroup.totalKm.toFixed(1) : '0.0'} km</div><div class="label">Your group total</div></div>
         </div>
         <div class="track-wrap">
           <div class="track"><div class="track-fill" style="width:${pct}%"></div><div class="track-runner" style="left:${pct}%">🏃</div></div>
-          <div class="track-labels"><span>0 km</span><span>Goal: ${targetKm.toLocaleString()} km</span></div>
+          <div class="track-labels"><span>0 km</span><span>Goal: ${groupTarget} km</span></div>
         </div>
         <div class="profile-chip">
           <span>${escapeHtml(state.profile.name)}</span>
-          <span class="cat-badge ${state.profile.category}">${escapeHtml(state.profile.category)}</span>
+          <span class="cat-badge Intermediate">${escapeHtml(state.profile.groupName || '—')}</span>
           <span class="mono" style="opacity:0.7">#${escapeHtml(state.profile.employeeId)}</span>
         </div>
       </div>
       <div class="tabs">
         <button class="tab-btn ${state.appTab === 'dashboard' ? 'active' : ''}" data-tab="dashboard">My Dashboard</button>
-        <button class="tab-btn ${state.appTab === 'leaderboard' ? 'active' : ''}" data-tab="leaderboard">Leaderboard</button>
+        <button class="tab-btn ${state.appTab === 'leaderboard' ? 'active' : ''}" data-tab="leaderboard">Groups</button>
         <button class="tab-btn ${state.appTab === 'admin' ? 'active' : ''}" data-tab="admin">Admin</button>
       </div>
-      <div class="panel" id="panel-content"></div>
-    `;
+      <div class="panel" id="panel"></div>`;
 
-    root.querySelector('#logout-link').addEventListener('click', (e) => { e.preventDefault(); clearProfile(); state.profile = null; state.view = 'landing'; render(); });
-    root.querySelectorAll('.tab-btn').forEach(btn => { btn.addEventListener('click', () => goToTab(btn.dataset.tab)); });
+    root.querySelector('#logout-link').addEventListener('click', e => {
+      e.preventDefault(); clearProfile(); state.profile = null; state.view = 'landing'; render();
+    });
+    root.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => goToTab(b.dataset.tab)));
 
-    const panel = root.querySelector('#panel-content');
-    if (state.appTab === 'dashboard') renderDashboardTab(panel);
-    else if (state.appTab === 'leaderboard') renderLeaderboardTab(panel);
-    else renderAdminTab(panel);
+    const panel = root.querySelector('#panel');
+    if (state.appTab === 'dashboard') renderDashboard(panel);
+    else if (state.appTab === 'leaderboard') renderGroups(panel);
+    else renderAdmin(panel);
   }
 
-  function renderBoardRows(rows) {
-    return rows.map(r => `
-      <div class="board-row">
-        <span class="rank mono">${r.rank || ''}</span>
-        <span class="move-indicator ${r.movement || 'same'}">${moveLabel(r)}</span>
-        <div class="name-wrap">
-          <div class="name">${escapeHtml(r.name)} <span class="cat-badge ${r.category}" style="margin-left:4px;">${escapeHtml(r.category)}</span></div>
-          <div class="sub-badges">${r.streak ? '<span class="streak-flag">🔥 5+ day streak</span>' : ''}</div>
-        </div>
-        <div style="text-align:right;">
-          <span class="metric">${r.distanceKm.toFixed(1)} km</span>
-          <span class="metric-sub">${r.days} day${r.days === 1 ? '' : 's'} · ${r.runs} run${r.runs === 1 ? '' : 's'}</span>
-        </div>
-      </div>`).join('');
-  }
-  function moveLabel(r) {
-    if (r.movement === 'new') return 'NEW';
-    if (r.movement === 'up') return '▲' + r.delta;
-    if (r.movement === 'down') return '▼' + r.delta;
-    return '–';
-  }
-
-  // Strava auto-sync is not wired up on the Supabase backend yet — it needs
-  // an Edge Function to handle the OAuth callback. Until then the card is
-  // hidden rather than shown as a button that would fail.
-  const STRAVA_ENABLED = false;
-  async function loadStravaStatus(employeeId) { return { connected: false }; }
-  async function loadStravaAuthUrl(employeeId) { return { error: 'Strava sync is not set up yet.' }; }
-  async function disconnectStravaCall(employeeId) { return { success: true }; }
-
-  function renderStravaCard(connected) {
-    if (!STRAVA_ENABLED) return '';
-    if (connected) {
-      return `
-        <div class="strava-card connected">
-          <div class="strava-icon">✓</div>
-          <div class="strava-body">
-            <div class="strava-title">Strava connected</div>
-            <div class="strava-desc">Your runs sync automatically each morning — no need to log them below.</div>
-          </div>
-          <button class="strava-btn ghost" id="strava-disconnect">Disconnect</button>
-        </div>`;
-    }
-    return `
-      <div class="strava-card">
-        <div class="strava-icon">S</div>
-        <div class="strava-body">
-          <div class="strava-title">Connect Strava</div>
-          <div class="strava-desc">Sync your runs automatically instead of logging them by hand. Optional.</div>
-        </div>
-        <button class="strava-btn" id="strava-connect">Connect</button>
-      </div>`;
-  }
-
-  function wireStravaCard(panel) {
-    const connectBtn = panel.querySelector('#strava-connect');
-    if (connectBtn) {
-      connectBtn.addEventListener('click', async () => {
-        connectBtn.disabled = true; connectBtn.textContent = 'Opening…';
-        try {
-          const res = await loadStravaAuthUrl(state.profile.employeeId);
-          if (res.authUrl) {
-            window.location.href = res.authUrl;
-          } else {
-            alert(res.error || 'Could not start the Strava connection. Please try again.');
-            connectBtn.disabled = false; connectBtn.textContent = 'Connect';
-          }
-        } catch (e) {
-          alert('Could not reach the server. Please try again.');
-          connectBtn.disabled = false; connectBtn.textContent = 'Connect';
-        }
-      });
-    }
-    const disconnectBtn = panel.querySelector('#strava-disconnect');
-    if (disconnectBtn) {
-      disconnectBtn.addEventListener('click', async () => {
-        if (!confirm('Disconnect Strava? Your existing runs stay on the leaderboard, but new ones will need logging by hand.')) return;
-        disconnectBtn.disabled = true; disconnectBtn.textContent = 'Removing…';
-        try {
-          await disconnectStravaCall(state.profile.employeeId);
-          state.stravaConnected = false;
-          await goToTab('dashboard');
-        } catch (e) {
-          alert('Could not disconnect right now. Please try again.');
-          disconnectBtn.disabled = false; disconnectBtn.textContent = 'Disconnect';
-        }
-      });
-    }
-  }
-
-  function renderDashboardTab(panel) {
+  // ---------- Dashboard ----------
+  function renderDashboard(panel) {
     if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading your dashboard…</div>'; return; }
-    const s = state.weeklyStats;
+    const s = state.groupStats;
     if (!s) { panel.innerHTML = '<div class="empty-state">Could not load your stats right now.</div>'; return; }
 
-    const targetKm = (s.config.categoryTargets && s.config.categoryTargets[state.profile.category]) || 15;
-    const mine = s.top10.find(r => r.employeeId === state.profile.employeeId);
-    const myKm = mine ? mine.distanceKm : 0;
-    const myPct = Math.min(100, (myKm / targetKm) * 100);
+    const target = s.perPersonTargetKm;
+    const myGroup = s.groups.find(g => g.id === state.profile.groupId);
+    const me = myGroup ? myGroup.members.find(m => m.employeeId === state.profile.employeeId) : null;
+    const myKm = me ? me.km : 0;
+    const myPct = Math.min(100, (myKm / target) * 100);
+    const remaining = Math.max(0, target - myKm);
 
     panel.innerHTML = `
       <div class="target-card">
-        <div class="row"><span class="t1">Your ${escapeHtml(state.profile.category)} target</span><span class="t2">${myKm.toFixed(1)} / ${targetKm} km this week</span></div>
+        <div class="row"><span class="t1">Your ${target} km target</span><span class="t2">${myKm.toFixed(1)} / ${target} km</span></div>
         <div class="mini-track"><div class="mini-track-fill" style="width:${myPct}%"></div></div>
+        <div class="target-note">${remaining > 0
+          ? `🏃 ${remaining.toFixed(1)} km to go — you're ${Math.round(myPct)}% there.`
+          : `🎉 Target smashed! Every extra km still counts for ${escapeHtml(myGroup ? myGroup.name : 'your group')}.`}</div>
       </div>
 
-      ${renderStravaCard(state.stravaConnected)}
-
-      <div class="form-screen" style="padding:0;max-width:none;margin-bottom:24px;">
-        <h2 style="font-size:15px;">${state.stravaConnected ? 'Log a run manually' : 'Log a run'}</h2>
+      <div class="form-screen" style="padding:0;max-width:none;margin-bottom:26px;">
+        <h2 style="font-size:15px;">Log a run</h2>
         <div class="field"><label for="f-date">Date</label><input id="f-date" type="date" value="${todayStr()}" /></div>
         <div class="field"><label for="f-distance">Distance (km)</label><input id="f-distance" type="number" step="0.1" min="0.1" max="100" placeholder="5.0" /></div>
         <div class="field"><label for="f-minutes">Duration (min, optional)</label><input id="f-minutes" type="number" step="1" min="0" placeholder="30" /></div>
@@ -1151,298 +1141,91 @@
         <div id="form-status"></div>
       </div>
 
-      <div class="board-title">Your Category — ${escapeHtml(state.profile.category)} Leaderboard (This Week)</div>
-      ${s.top10.length === 0 ? '<div class="empty-state">No runs logged in your category yet this week — be the first!</div>' : renderBoardRows(s.top10.map((r, i) => Object.assign({}, r, { rank: i + 1 })))}
-    `;
+      <div class="board-title">${escapeHtml(myGroup ? myGroup.name : 'Your group')} — Member Progress</div>
+      ${myGroup && myGroup.members.length ? `
+        <div class="member-list standalone">
+          ${myGroup.members.map(m => `
+            <div class="member-row ${m.employeeId === state.profile.employeeId ? 'is-me' : ''}">
+              <div class="member-avatar">${escapeHtml(initials(m.name))}</div>
+              <div class="member-body">
+                <div class="member-name">${escapeHtml(m.name)} ${m.hitTarget ? '<span class="target-tick">✓</span>' : ''}</div>
+                <div class="member-bar-track"><div class="member-bar-fill ${m.hitTarget ? 'done' : ''}" style="width:${m.pct}%"></div></div>
+              </div>
+              <div class="member-km">${m.km.toFixed(1)}<span>km</span></div>
+            </div>`).join('')}
+        </div>` : '<div class="empty-state">No members in your group yet.</div>'}`;
 
     if (state.formStatus) {
-      panel.querySelector('#form-status').innerHTML = `<div class="${state.formStatus.type === 'ok' ? 'confirm-msg' : 'error-msg'}">${escapeHtml(state.formStatus.msg)}</div>`;
+      panel.querySelector('#form-status').innerHTML =
+        `<div class="${state.formStatus.type === 'ok' ? 'confirm-msg' : 'error-msg'}">${escapeHtml(state.formStatus.msg)}</div>`;
     }
 
     panel.querySelector('#submit-btn').addEventListener('click', async () => {
       const date = panel.querySelector('#f-date').value;
-      const distanceKm = parseFloat(panel.querySelector('#f-distance').value);
-      const minutes = parseFloat(panel.querySelector('#f-minutes').value) || 0;
-      if (!date || !distanceKm || distanceKm <= 0) {
-        state.formStatus = { type: 'err', msg: 'Please enter a date and a distance greater than 0.' }; render(); return;
+      const km = parseFloat(panel.querySelector('#f-distance').value);
+      const mins = parseFloat(panel.querySelector('#f-minutes').value) || 0;
+      if (!date || !km || km <= 0) { state.formStatus = { type: 'err', msg: 'Please enter a date and a distance greater than 0.' }; render(); return; }
+      if (km > 100) { state.formStatus = { type: 'err', msg: 'That looks too high — max 100 km per entry.' }; render(); return; }
+      const btn = panel.querySelector('#submit-btn');
+      btn.disabled = true; btn.textContent = 'Logging…';
+      try {
+        await logRun(state.profile.employeeId, date, km, mins);
+        state.formStatus = { type: 'ok', msg: `Logged ${km} km for ${date}. Nice work!` };
+        await goToTab('dashboard');
+      } catch (e) {
+        state.formStatus = { type: 'err', msg: 'Could not save that run — please try again.' };
+        render();
       }
-      if (distanceKm > 100) {
-        state.formStatus = { type: 'err', msg: 'That looks too high — max 100km per entry.' }; render(); return;
-      }
-      const btn = panel.querySelector('#submit-btn'); btn.disabled = true; btn.textContent = 'Logging…';
-      await logRun(state.profile.employeeId, date, distanceKm, minutes);
-      state.formStatus = { type: 'ok', msg: `Logged ${distanceKm}km for ${date}. Nice work!` };
-      await goToTab('dashboard');
     });
-
-    wireStravaCard(panel);
   }
 
-  // ---------- Countdown ----------
-  let countdownTimer = null;
-
-  function clearCountdown() {
-    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  }
-
-  function computeCountdown(config) {
-    if (!config || !config.endDate) return null;
-    const end = new Date(config.endDate + 'T23:59:59');
-    if (isNaN(end.getTime())) return null;
-    const start = config.startDate ? new Date(config.startDate + 'T00:00:00') : null;
-    const now = new Date();
-    const msLeft = end - now;
-
-    let pct = 0;
-    if (start && !isNaN(start.getTime())) {
-      const total = end - start;
-      pct = total > 0 ? Math.max(0, Math.min(100, ((now - start) / total) * 100)) : 0;
-    }
-
-    if (msLeft <= 0) return { ended: true, pct: 100, endLabel: formatEndDate(end) };
-
-    const days = Math.floor(msLeft / 86400000);
-    const hours = Math.floor((msLeft % 86400000) / 3600000);
-    const mins = Math.floor((msLeft % 3600000) / 60000);
-    const secs = Math.floor((msLeft % 60000) / 1000);
-    return { ended: false, days, hours, mins, secs, pct, endLabel: formatEndDate(end) };
-  }
-
-  function formatEndDate(d) {
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-
-  function pad2(n) { return String(n).padStart(2, '0'); }
-
-  function renderCountdownHtml(cd) {
-    if (!cd) return '';
-    if (cd.ended) {
-      return `
-        <div class="countdown-card">
-          <div class="countdown-top"><span class="countdown-label">Challenge Complete</span><span class="countdown-ends">Ended ${escapeHtml(cd.endLabel)}</span></div>
-          <div class="countdown-ended">🏁 Final results are in</div>
-          <div class="cd-progress-track"><div class="cd-progress-fill" style="width:100%"></div></div>
-        </div>`;
-    }
-    return `
-      <div class="countdown-card" id="countdown-card">
-        <div class="countdown-top">
-          <span class="countdown-label">Time Remaining</span>
-          <span class="countdown-ends">Ends ${escapeHtml(cd.endLabel)}</span>
-        </div>
-        <div class="countdown-units">
-          <div class="cd-unit"><div class="v" id="cd-days">${cd.days}</div><div class="l">Days</div></div>
-          <div class="cd-unit"><div class="v" id="cd-hours">${pad2(cd.hours)}</div><div class="l">Hours</div></div>
-          <div class="cd-unit"><div class="v" id="cd-mins">${pad2(cd.mins)}</div><div class="l">Mins</div></div>
-          <div class="cd-unit"><div class="v" id="cd-secs">${pad2(cd.secs)}</div><div class="l">Secs</div></div>
-        </div>
-        <div class="cd-progress-track">
-          <div class="cd-progress-fill" id="cd-fill" style="width:${cd.pct}%"></div>
-          <div class="cd-progress-dot" id="cd-dot" style="left:${cd.pct}%"></div>
-        </div>
-      </div>`;
-  }
-
-  function startCountdown(config) {
-    clearCountdown();
-    if (!config || !config.endDate) return;
-    countdownTimer = setInterval(() => {
-      const cd = computeCountdown(config);
-      const daysEl = document.getElementById('cd-days');
-      if (!daysEl || !cd) { clearCountdown(); return; } // card no longer on screen
-      if (cd.ended) { clearCountdown(); goToTab(state.appTab); return; }
-      daysEl.textContent = cd.days;
-      document.getElementById('cd-hours').textContent = pad2(cd.hours);
-      document.getElementById('cd-mins').textContent = pad2(cd.mins);
-      document.getElementById('cd-secs').textContent = pad2(cd.secs);
-      const fill = document.getElementById('cd-fill');
-      const dot = document.getElementById('cd-dot');
-      if (fill) fill.style.width = cd.pct + '%';
-      if (dot) dot.style.left = cd.pct + '%';
-    }, 1000);
-  }
-
-  function renderMyPerformance(myCatStats) {
-    if (!state.profile || !myCatStats) return '';
-    const rows = myCatStats.top10 || [];
-    const myId = String(state.profile.employeeId).toLowerCase();
-    const idx = rows.findIndex(r => String(r.employeeId).toLowerCase() === myId);
-
-    if (idx === -1) {
-      return `
-        <div class="perf-card">
-          <div class="perf-top">
-            <span class="perf-label">My Performance</span>
-            <span class="perf-cat">${escapeHtml(state.profile.category)} category</span>
-          </div>
-          <div class="perf-nudge">🏃 You haven't logged a run this week yet — log one to get on the board.</div>
-        </div>`;
-    }
-
-    const me = rows[idx];
-    const rank = idx + 1;
-    let nudge;
-    if (idx === 0) {
-      const behind = rows[1];
-      nudge = behind
-        ? `<div class="perf-nudge leading">🥇 You're leading your category — <strong>${(me.distanceKm - behind.distanceKm).toFixed(1)} km</strong> ahead of second place.</div>`
-        : `<div class="perf-nudge leading">🥇 You're leading your category. Keep it up.</div>`;
-    } else {
-      const above = rows[idx - 1];
-      const gap = above.distanceKm - me.distanceKm;
-      nudge = `<div class="perf-nudge">🏃 Only <strong>${gap.toFixed(1)} km</strong> more to overtake ${escapeHtml(above.name)} above you.</div>`;
-    }
-
-    return `
-      <div class="perf-card">
-        <div class="perf-top">
-          <span class="perf-label">My Performance</span>
-          <span class="perf-cat">${escapeHtml(state.profile.category)} category</span>
-        </div>
-        <div class="perf-units">
-          <div class="perf-unit"><div class="v">#${rank}</div><div class="l">My Rank</div></div>
-          <div class="perf-unit"><div class="v">${me.distanceKm.toFixed(1)}</div><div class="l">Total km</div></div>
-          <div class="perf-unit"><div class="v">${me.runs}</div><div class="l">Runs</div></div>
-          <div class="perf-unit"><div class="v">${me.days}</div><div class="l">Days Active</div></div>
-        </div>
-        ${nudge}
-      </div>`;
-  }
-
-  function initials(name) {
-    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return '??';
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-
-  function renderPodium(top3) {
-    if (top3.length === 0) return '';
-    // Display order: 2nd, 1st, 3rd (1st elevated in the middle)
-    const order = [top3[1], top3[0], top3[2]];
-    const medals = ['🥈', '🥇', '🥉'];
-    return `
-      <div class="podium">
-        ${order.map((r, i) => {
-          if (!r) return '<div class="podium-slot"></div>';
-          const isFirst = (i === 1);
-          return `
-            <div class="podium-slot ${isFirst ? 'first' : ''}">
-              <div class="podium-medal">${medals[i]}</div>
-              <div class="podium-avatar">${escapeHtml(initials(r.name))}</div>
-              <div class="podium-name">${escapeHtml(r.name)}</div>
-              <div class="podium-km">${r.distanceKm.toFixed(1)} km</div>
-            </div>`;
-        }).join('')}
-      </div>`;
-  }
-
-  function renderRankRows(rows) {
-    const myId = state.profile ? String(state.profile.employeeId).toLowerCase() : null;
-    return rows.map((r, i) => {
-      const isMe = myId && String(r.employeeId).toLowerCase() === myId;
-      return `
-      <div class="rank-row ${isMe ? 'is-me' : ''}" ${isMe ? 'id="my-rank-row"' : ''}>
-        <span class="rank-num">${i + 1}</span>
-        <div class="rank-main">
-          <div class="rank-name">${escapeHtml(r.name)}</div>
-          <div class="rank-meta">
-            <span class="move-indicator ${r.movement || 'same'}">${moveLabel(r)}</span>
-            <span class="cat-badge ${r.category}">${escapeHtml(r.category)}</span>
-            <span>${r.days} day${r.days === 1 ? '' : 's'} · ${r.runs} run${r.runs === 1 ? '' : 's'}</span>
-            ${r.streak ? '<span>🔥</span>' : ''}
-          </div>
-        </div>
-        <div class="rank-km"><div class="v">${r.distanceKm.toFixed(1)}</div><div class="u">km</div></div>
-      </div>`;
-    }).join('');
-  }
-
-  function renderLeaderboardTab(panel) {
-    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading leaderboard…</div>'; return; }
-    const s = state.weeklyStats;
+  // ---------- Groups leaderboard ----------
+  function renderGroups(panel) {
+    if (state.loading) { panel.innerHTML = '<div class="loading-state">Loading groups…</div>'; return; }
+    const s = state.groupStats;
     if (!s) { panel.innerHTML = '<div class="empty-state">Could not load the leaderboard right now.</div>'; return; }
 
-    const avgKm = s.participants > 0 ? (s.companyKm / s.participants) : 0;
-    const top3 = s.top10.slice(0, 3);
     const cd = computeCountdown(s.config);
-
     panel.innerHTML = `
       <div class="board-header">
         <span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>
-        <h2 class="board-h1">Running scoreboard</h2>
-        <p class="board-h1-sub">Ranked by total kilometres · ${escapeHtml(s.rangeStart)} – ${escapeHtml(s.rangeEnd)}</p>
+        <h2 class="board-h1">Group scoreboard</h2>
+        <p class="board-h1-sub">Ranked by total kilometres · ${s.perPersonTargetKm} km target per person</p>
       </div>
-
       ${renderCountdownHtml(cd)}
-
-      ${renderMyPerformance(state.myCatStats)}
-
-      <div class="seg-tabs" id="seg-tabs">
-        <button data-cat="all" class="${state.catFilter === 'all' ? 'active' : ''}">All</button>
-        ${CATEGORIES.map(c => `<button data-cat="${c.id}" class="${state.catFilter === c.id ? 'active' : ''}">${c.id}</button>`).join('')}
-      </div>
-
       <div class="stat-strip">
-        <div class="stat-cell"><div class="num">${s.participants}</div><div class="label">Runners</div></div>
+        <div class="stat-cell"><div class="num">${s.groups.length}</div><div class="label">Groups</div></div>
+        <div class="stat-cell"><div class="num">${s.totalRunners}</div><div class="label">Runners</div></div>
         <div class="stat-cell"><div class="num">${s.companyKm.toFixed(1)}</div><div class="label">Total km</div></div>
-        <div class="stat-cell"><div class="num">${avgKm.toFixed(1)}</div><div class="label">Avg km</div></div>
       </div>
-      ${renderPodium(top3)}
-
-      ${s.top10.length === 0
-        ? '<div class="empty-state">No runs logged in this period yet — be the first!</div>'
-        : `<div class="board-scroll" id="board-scroll">${renderRankRows(s.top10)}</div>
-           <div class="board-count">Showing all ${s.top10.length} runner${s.top10.length === 1 ? '' : 's'} — scroll to see more</div>`}
-    `;
-    panel.querySelectorAll('#seg-tabs button').forEach(btn => {
-      btn.addEventListener('click', () => { state.catFilter = btn.dataset.cat; goToTab('leaderboard'); });
-    });
-
-    // If the person is on this board but below the fold, offer a jump link
-    const myRow = panel.querySelector('#my-rank-row');
-    const scrollBox = panel.querySelector('#board-scroll');
-    if (myRow && scrollBox) {
-      const needsJump = myRow.offsetTop > scrollBox.clientHeight - 60;
-      if (needsJump) {
-        const jumpBtn = document.createElement('button');
-        jumpBtn.className = 'jump-me-btn';
-        jumpBtn.textContent = '↓ Jump to my position';
-        jumpBtn.addEventListener('click', () => {
-          scrollBox.scrollTo({ top: myRow.offsetTop - 100, behavior: 'smooth' });
-        });
-        scrollBox.parentNode.insertBefore(jumpBtn, scrollBox.nextSibling.nextSibling);
-      }
-    }
+      <div class="tap-hint">Tap a group to see its members</div>
+      ${renderGroupRows(s.groups)}`;
+    wireGroupRows(panel);
     startCountdown(s.config);
   }
 
-  function renderAdminTab(panel) {
+  // ---------- Admin ----------
+  function renderAdmin(panel) {
     if (!state.adminData || !state.adminData.authorized) {
       panel.innerHTML = `
         <div class="admin-gate">
           <div class="board-title">Admin Access</div>
           <div class="field"><label for="admin-pass">Passcode</label><input id="admin-pass" type="password" placeholder="Enter admin passcode" /></div>
-          <button class="submit-btn" id="admin-unlock-btn">Unlock</button>
-          <div id="admin-gate-status"></div>
-        </div>
-      `;
-      panel.querySelector('#admin-unlock-btn').addEventListener('click', async () => {
+          <button class="submit-btn" id="unlock-btn">Unlock</button>
+          <div id="gate-status"></div>
+        </div>`;
+      const unlock = async () => {
         const pass = panel.querySelector('#admin-pass').value;
-        const statusEl = panel.querySelector('#admin-gate-status');
+        const st = panel.querySelector('#gate-status');
         try {
-          const result = await loadAdmin(pass);
-          if (result.authorized) {
-            state.adminData = result;
-            sessionStorage.setItem(ADMIN_KEY, pass);
-            renderAdminTab(panel);
-          } else {
-            statusEl.innerHTML = '<div class="error-msg">Incorrect passcode.</div>';
-          }
-        } catch (e) {
-          statusEl.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
-        }
-      });
+          const res = await loadAdmin(pass);
+          if (res && res.authorized) {
+            state.adminData = res; sessionStorage.setItem(ADMIN_KEY, pass); renderAdmin(panel);
+          } else { st.innerHTML = '<div class="error-msg">Incorrect passcode.</div>'; }
+        } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
+      };
+      panel.querySelector('#unlock-btn').addEventListener('click', unlock);
+      panel.querySelector('#admin-pass').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
       return;
     }
 
@@ -1451,87 +1234,100 @@
       <div class="stat-row">
         <div class="stat-card"><div class="num display">${d.totalEmployees}</div><div class="label">Registered</div></div>
         <div class="stat-card"><div class="num display">${d.totalEntries}</div><div class="label">Runs logged</div></div>
-        <div class="stat-card"><div class="num display">${d.allTimeKm.toFixed(1)}</div><div class="label">Total km all-time</div></div>
-      </div>
-
-      <div class="admin-section">
-        <h4>Category Breakdown</h4>
-        ${Object.keys(d.categoryCounts).map(cat => `
-          <div class="dist-row">
-            <div class="dist-label">${cat}</div>
-            <div class="dist-bar-track"><div class="dist-bar-fill" style="width:${Math.min(100, d.categoryCounts[cat] * 3)}%;background:var(--teal)"></div></div>
-            <div class="dist-count">${d.categoryCounts[cat]}</div>
-          </div>`).join('')}
+        <div class="stat-card"><div class="num display">${d.allTimeKm.toFixed(1)}</div><div class="label">Total km</div></div>
       </div>
 
       <div class="admin-section">
         <h4>Challenge Settings</h4>
         <div class="admin-config-grid">
           <div class="field"><label>Title</label><input id="cfg-title" type="text" value="${escapeHtml(d.config.title)}" /></div>
-          <div class="field"><label>Company Target (km)</label><input id="cfg-company" type="number" value="${d.config.companyTargetKm}" /></div>
-          <div class="field"><label>Start Date</label><input id="cfg-start" type="date" value="${d.config.startDate}" /></div>
-          <div class="field"><label>End Date</label><input id="cfg-end" type="date" value="${d.config.endDate}" /></div>
-          <div class="field"><label>Beginner Target (km)</label><input id="cfg-beg" type="number" value="${d.config.categoryTargets.Beginner}" /></div>
-          <div class="field"><label>Intermediate Target (km)</label><input id="cfg-int" type="number" value="${d.config.categoryTargets.Intermediate}" /></div>
-          <div class="field"><label>Expert Target (km)</label><input id="cfg-exp" type="number" value="${d.config.categoryTargets.Expert}" /></div>
+          <div class="field"><label>Target per person (km)</label><input id="cfg-target" type="number" value="${d.config.perPersonTargetKm}" /></div>
+          <div class="field"><label>Start Date</label><input id="cfg-start" type="date" value="${d.config.startDate || ''}" /></div>
+          <div class="field"><label>End Date</label><input id="cfg-end" type="date" value="${d.config.endDate || ''}" /></div>
+          <div class="field"><label>Max members per group</label><input id="cfg-size" type="number" value="${d.config.maxGroupSize}" /></div>
         </div>
-        <button class="submit-btn" id="cfg-save-btn" style="max-width:200px;margin-top:14px;">Save Settings</button>
+        <button class="submit-btn" id="cfg-save" style="max-width:200px;margin-top:14px;">Save Settings</button>
         <div id="cfg-status"></div>
+      </div>
+
+      <div class="admin-section">
+        <h4>Groups (${d.groups.length}) — click a name to rename</h4>
+        <div class="table-wrap"><table class="admin-table">
+          <tr><th>Group</th><th>Members</th><th></th></tr>
+          ${d.groups.map(g => `<tr>
+            <td><input class="grp-name-input" data-gid="${g.id}" value="${escapeHtml(g.name)}" /></td>
+            <td>${g.memberCount}</td>
+            <td><button class="ghost-btn grp-save" data-gid="${g.id}" style="padding:5px 10px;font-size:11.5px;">Save</button></td>
+          </tr>`).join('')}
+        </table></div>
+        <div id="grp-status"></div>
       </div>
 
       <div class="admin-section">
         <h4>Employees (${d.employees.length})</h4>
         <div class="table-wrap"><table class="admin-table">
-          <tr><th>ID</th><th>Name</th><th>Category</th></tr>
-          ${d.employees.map(e => `<tr><td class="mono">${escapeHtml(e.employeeId)}</td><td>${escapeHtml(e.name)}</td><td>${escapeHtml(e.category)}</td></tr>`).join('')}
+          <tr><th>ID</th><th>Name</th><th>Group</th></tr>
+          ${d.employees.map(e => `<tr><td class="mono">${escapeHtml(e.employeeId)}</td><td>${escapeHtml(e.name)}</td><td>${escapeHtml(e.groupName || '—')}</td></tr>`).join('')}
         </table></div>
       </div>
 
-      <button class="ghost-btn" id="csv-btn">Download full entries log as CSV</button>
-    `;
+      <button class="ghost-btn" id="csv-btn">Download full entries log as CSV</button>`;
 
-    panel.querySelector('#cfg-save-btn').addEventListener('click', async () => {
-      const statusEl = panel.querySelector('#cfg-status');
-      const passcode = sessionStorage.getItem(ADMIN_KEY);
-      const btn = panel.querySelector('#cfg-save-btn');
+    panel.querySelector('#cfg-save').addEventListener('click', async () => {
+      const st = panel.querySelector('#cfg-status');
+      const pass = sessionStorage.getItem(ADMIN_KEY);
+      const btn = panel.querySelector('#cfg-save');
       btn.disabled = true; btn.textContent = 'Saving…';
       try {
-        const res = await saveConfig(passcode, {
+        const res = await saveConfig(pass, {
           title: panel.querySelector('#cfg-title').value,
-          companyTargetKm: panel.querySelector('#cfg-company').value,
+          perPersonTargetKm: panel.querySelector('#cfg-target').value,
           startDate: panel.querySelector('#cfg-start').value,
           endDate: panel.querySelector('#cfg-end').value,
-          beginnerKm: panel.querySelector('#cfg-beg').value,
-          intermediateKm: panel.querySelector('#cfg-int').value,
-          expertKm: panel.querySelector('#cfg-exp').value
+          maxGroupSize: panel.querySelector('#cfg-size').value
         });
         if (res && res.success === false) {
-          statusEl.innerHTML = '<div class="error-msg">' + escapeHtml(res.error || 'Could not save.') + '</div>';
-          btn.disabled = false; btn.textContent = 'Save Settings';
-          return;
+          st.innerHTML = '<div class="error-msg">' + escapeHtml(res.error) + '</div>';
+        } else {
+          st.innerHTML = '<div class="confirm-msg">Settings saved.</div>';
+          state.adminData = await loadAdmin(pass);
         }
-        statusEl.innerHTML = '<div class="confirm-msg">Settings saved.</div>';
-        state.adminData = await loadAdmin(passcode);
-        renderAdminTab(panel);
-      } catch (e) {
-        statusEl.innerHTML = '<div class="error-msg">Could not save right now — please try again.</div>';
-        btn.disabled = false; btn.textContent = 'Save Settings';
-      }
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not save — please try again.</div>'; }
+      btn.disabled = false; btn.textContent = 'Save Settings';
+    });
+
+    panel.querySelectorAll('.grp-save').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const gid = Number(btn.dataset.gid);
+        const input = panel.querySelector('.grp-name-input[data-gid="' + gid + '"]');
+        const st = panel.querySelector('#grp-status');
+        const pass = sessionStorage.getItem(ADMIN_KEY);
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          const res = await renameGroup(pass, gid, input.value.trim());
+          st.innerHTML = (res && res.success === false)
+            ? '<div class="error-msg">' + escapeHtml(res.error) + '</div>'
+            : '<div class="confirm-msg">Group renamed.</div>';
+          state.adminData = await loadAdmin(pass);
+        } catch (e) { st.innerHTML = '<div class="error-msg">Could not rename — please try again.</div>'; }
+        btn.disabled = false; btn.textContent = 'Save';
+      });
     });
 
     panel.querySelector('#csv-btn').addEventListener('click', () => {
-      const rows = [['EmployeeID', 'Name', 'Category', 'Date', 'Distance (km)', 'Duration (min)']];
-      d.entries.forEach(e => rows.push([e.employeeId, e.name, e.category, e.date, e.distanceKm, e.minutes]));
-      const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'running-challenge-entries.csv'; a.click();
+      const rows = [['EmployeeID', 'Name', 'Group', 'Date', 'Distance (km)', 'Duration (min)']];
+      d.entries.forEach(e => rows.push([e.employeeId, e.name, e.groupName || '', e.date, e.distanceKm, e.minutes]));
+      const csv = rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'running-challenge-entries.csv'; a.click();
       URL.revokeObjectURL(url);
     });
   }
 
   init();
 })();
+
 </script>
 </body>
 </html>
