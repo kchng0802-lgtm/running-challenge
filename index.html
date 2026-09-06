@@ -667,6 +667,23 @@
   .wc-date { font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#146B5F; }
   .wc-km { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; color:var(--navy); margin-top:2px; }
 
+  /* ---------- Race to finish ---------- */
+  .race-card { background:linear-gradient(180deg,#F4FBFA,var(--white)); border:1px solid #CBE8E2; border-radius:14px; padding:16px; margin-bottom:20px; }
+  .race-label { font-size:11.5px; font-weight:700; color:var(--ink); text-transform:uppercase; letter-spacing:0.09em; }
+  .race-count { font-family:'Space Grotesk',sans-serif; font-size:22px; color:var(--navy); margin:5px 0 11px; }
+  .race-count strong { color:var(--teal); }
+  .race-dots { display:flex; gap:6px; margin-bottom:11px; flex-wrap:wrap; }
+  .race-dot { width:100%; max-width:26px; height:8px; border-radius:4px; background:#DDE4E8; flex:1; }
+  .race-dot.lit { background:linear-gradient(90deg,var(--teal),#38C6B3); }
+  .race-note { font-size:13px; color:var(--ink-soft); line-height:1.45; }
+  .finish-banner { background:linear-gradient(135deg,#0d5c4a,#1F9C8C); color:#fff; border-radius:14px; padding:18px; margin-bottom:20px; text-align:center; font-size:15px; line-height:1.5; }
+  .finish-banner small { color:#B9EFE5; }
+  .fin-badge { font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; background:var(--gold); color:#3D2C05; padding:2px 7px; border-radius:4px; margin-left:6px; letter-spacing:0.03em; }
+  .group-row.finished { border-color:var(--teal); }
+  .group-bar-fill.done { background:linear-gradient(90deg,#1F9C8C,#38C6B3); }
+  .done-chip { font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; background:var(--teal-light); color:#146B5F; padding:2px 6px; border-radius:4px; margin-left:5px; }
+  .member-row.done .member-name { color:#146B5F; }
+
 </style>
 </head>
 <body>
@@ -1028,13 +1045,19 @@
       '<div class="today-km">' + s.topToday.km.toFixed(1) + ' km logged today</div></div>';
   }
 
+  function fmtShort(d) {
+    if (!d) return '';
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+
   function memberRowHtml(m) {
     const isMe = state.profile && m.employeeId === state.profile.employeeId;
-    return '<div class="member-row ' + (isMe ? 'is-me' : '') + '">' +
+    return '<div class="member-row ' + (isMe ? 'is-me' : '') + (m.hitTarget ? ' done' : '') + '">' +
       '<div class="member-avatar">' + esc(initials(m.name)) + '</div>' +
       '<div class="member-body"><div class="member-name">' + esc(m.name) +
       (m.role === 'leader' ? ' <span class="lead-tag">LEADER</span>' : '') +
-      (m.hitTarget ? ' <span class="target-tick">✓</span>' : '') + '</div>' +
+      (m.hitTarget ? ' <span class="done-chip">✓ ' + esc(fmtShort(m.hitDate)) + '</span>' : '') + '</div>' +
       '<div class="member-bar-track"><div class="member-bar-fill ' + (m.hitTarget ? 'done' : '') +
       '" style="width:' + m.pct + '%"></div></div></div>' +
       '<div class="member-km">' + m.km.toFixed(1) + '<span>km</span></div></div>';
@@ -1045,17 +1068,26 @@
     const medals = ['🥇','🥈','🥉'];
     return s.groups.map(function (g, i) {
       const mine = g.id === myId;
-      const pct = g.groupTargetKm > 0 ? Math.min(100, (g.totalKm / g.groupTargetKm) * 100) : 0;
+      // Progress is measured on COUNTED km (each member capped at 50),
+      // which is what actually moves a group toward finishing.
+      const pct = g.groupTargetKm > 0 ? Math.min(100, (g.countedKm / g.groupTargetKm) * 100) : 0;
       const open = state.expandedGroupId === g.id;
-      const rankCls = g.totalKm > 0 && i < 3 ? ' rank-' + (i+1) : '';
-      return '<div class="group-row' + rankCls + ' ' + (mine ? 'is-mine' : '') + '" data-gid="' + g.id + '">' +
-        '<div class="group-row-head"><span class="group-rank">' + (i < 3 ? medals[i] : (i+1)) + '</span>' +
+      const rankCls = g.isFinished && i < 3 ? ' rank-' + (i+1) : '';
+      const finLabel = g.isFinished
+        ? '<span class="fin-badge">🏁 Finished ' + esc(fmtShort(g.finishDate)) + '</span>'
+        : '';
+      const meta = g.isFinished
+        ? 'All ' + g.memberCount + ' members completed 50 km'
+        : g.membersHitTarget + '/' + s.maxGroupSize + ' done' +
+          (g.needsMembers > 0 ? ' · needs ' + g.needsMembers + ' more member' + (g.needsMembers === 1 ? '' : 's') : '') +
+          (g.hasLeader ? '' : ' · no leader yet');
+      return '<div class="group-row' + rankCls + ' ' + (mine ? 'is-mine' : '') + (g.isFinished ? ' finished' : '') + '" data-gid="' + g.id + '">' +
+        '<div class="group-row-head"><span class="group-rank">' + (g.isFinished && i < 3 ? medals[i] : (i+1)) + '</span>' +
         '<div class="group-main"><div class="group-name">' + esc(g.name) +
-        (mine ? '<span class="you-tag">YOUR GROUP</span>' : '') + '</div>' +
-        '<div class="group-meta">' + g.memberCount + '/' + s.maxGroupSize + ' members · ' +
-        g.membersHitTarget + ' hit 50 km' + (g.hasLeader ? '' : ' · no leader yet') + '</div>' +
-        '<div class="group-bar-track"><div class="group-bar-fill" style="width:' + pct + '%"></div></div></div>' +
-        '<div class="group-km"><div class="v">' + g.totalKm.toFixed(1) + '</div><div class="u">/ ' + g.groupTargetKm + ' km</div></div></div>' +
+        (mine ? '<span class="you-tag">YOUR GROUP</span>' : '') + finLabel + '</div>' +
+        '<div class="group-meta">' + meta + '</div>' +
+        '<div class="group-bar-track"><div class="group-bar-fill' + (g.isFinished ? ' done' : '') + '" style="width:' + pct + '%"></div></div></div>' +
+        '<div class="group-km"><div class="v">' + g.countedKm.toFixed(0) + '</div><div class="u">/ ' + g.groupTargetKm + ' km</div></div></div>' +
         (open ? '<div class="member-list">' +
           (!g.members.length ? '<div class="member-empty">No members yet.</div>' : g.members.map(memberRowHtml).join('')) +
           '</div>' : '') + '</div>';
@@ -1085,7 +1117,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">15 Sep – 15 Oct · 50 km per person · 500 km per group</p></div>' +
+      '<p class="board-h1-sub">15 Sep – 15 Oct · first group with all 10 at 50 km wins</p></div>' +
       cdHtml(computeCd(s)) + todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">' + s.groups.length + '</div><div class="label">Groups</div></div>' +
@@ -1155,10 +1187,23 @@
     p.innerHTML = cdHtml(computeCd(s)) +
       ringCard(myKm, s.perPersonTargetKm, myGroup ? myGroup.name : 'your group') +
       badgeStrip(myKm, s.perPersonTargetKm) +
+      (myGroup ? (myGroup.isFinished
+        ? '<div class="finish-banner">🏁 <strong>' + esc(myGroup.name) + ' has finished!</strong><br>' +
+          '<small>All members completed 50 km on ' + esc(fmtShort(myGroup.finishDate)) + '</small></div>'
+        : '<div class="race-card"><div class="race-label">Race to finish</div>' +
+          '<div class="race-count"><strong>' + myGroup.membersHitTarget + '</strong> of ' + s.maxGroupSize + ' done</div>' +
+          '<div class="race-dots">' +
+          Array.from({length: s.maxGroupSize}, (_, i) =>
+            '<span class="race-dot' + (i < myGroup.membersHitTarget ? ' lit' : '') + '"></span>').join('') +
+          '</div><div class="race-note">' +
+          (myGroup.needsMembers > 0
+            ? '⚠️ Group needs ' + myGroup.needsMembers + ' more member' + (myGroup.needsMembers === 1 ? '' : 's') + ' before it can finish.'
+            : (s.maxGroupSize - myGroup.membersHitTarget) + ' teammate' + ((s.maxGroupSize - myGroup.membersHitTarget) === 1 ? '' : 's') + ' still to reach 50 km.') +
+          '</div></div>') : '') +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">#' + rank + '</div><div class="label">Group rank</div></div>' +
-      '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.membersHitTarget : 0) + '</div><div class="label">Hit 50 km</div></div>' +
-      '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.memberCount : 0) + '</div><div class="label">Members</div></div></div>' +
+      '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.membersHitTarget : 0) + '/' + s.maxGroupSize + '</div><div class="label">Hit 50 km</div></div>' +
+      '<div class="stat-cell"><div class="num">' + (s.finishedCount || 0) + '</div><div class="label">Groups done</div></div></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="board-title">' + esc(myGroup ? myGroup.name : 'Your group') + ' — Member Progress</div>' +
       (myGroup && myGroup.members.length
@@ -1206,7 +1251,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">Ranked by total kilometres · 500 km per group</p></div>' +
+      '<p class="board-h1-sub">First group with all 10 members at 50 km wins</p></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
     wireGroupRows(p);
