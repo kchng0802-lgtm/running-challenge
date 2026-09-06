@@ -684,6 +684,13 @@
   .done-chip { font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:700; background:var(--teal-light); color:#146B5F; padding:2px 6px; border-radius:4px; margin-left:5px; }
   .member-row.done .member-name { color:#146B5F; }
 
+  /* ---------- Per-date entry ---------- */
+  .date-notice { background:var(--gold-light); border:1px solid #F0DBA6; border-radius:10px; padding:10px 13px; font-size:12.5px; color:#8A6110; margin-bottom:12px; line-height:1.45; }
+  .already-chip { font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; background:var(--gold-light); color:#8A6110; padding:1px 5px; border-radius:4px; }
+  .day-chip { cursor:pointer; font-family:inherit; text-align:center; transition:border-color 0.15s ease, transform 0.15s ease; }
+  .day-chip:hover { border-color:var(--teal); transform:translateY(-1px); }
+  .wc-sub { font-size:9.5px; color:var(--ink-soft); margin-top:1px; }
+
 </style>
 </head>
 <body>
@@ -714,7 +721,9 @@
     pendingAccount: null,
     standings: null,
     myGroup: null,
-    myWeeks: null,
+    myDays: null,
+    onDate: {},
+    entryDate: null,
     adminData: null,
     expandedGroupId: null,
     loading: false
@@ -769,7 +778,8 @@
     removeUser: (p, id) => rpc('admin_remove_user', { p_passcode: p, p_employee_id: id }),
     changePassword: (t, cur, nw) => rpc('change_my_password', { p_token: t, p_current: cur, p_new: nw }),
     logBulk: (t, date, rows) => rpc('leader_log_bulk', { p_token: t, p_date: date, p_rows: rows }),
-    myWeeks: t => rpc('my_group_weeks', { p_token: t })
+    myDays: t => rpc('my_group_days', { p_token: t }),
+    onDate: (t, d) => rpc('my_group_on_date', { p_token: t, p_date: d })
   };
 
   if ('serviceWorker' in navigator) {
@@ -856,7 +866,8 @@
       state.standings = await api.standings();
       if (tab === 'manage' && state.token) {
         state.myGroup = await api.myGroup(state.token);
-        state.myWeeks = await api.myWeeks(state.token);
+        state.myDays = await api.myDays(state.token);
+        state.onDate = await api.onDate(state.token, state.entryDate || todayStr());
       }
     } catch (e) { state.standings = null; }
     state.loading = false;
@@ -1265,25 +1276,36 @@
     const full = g.members.length >= g.maxGroupSize;
 
     p.innerHTML =
-      '<div class="admin-section"><h4>Weekly update</h4>' +
-      '<p class="section-hint">Enter everyone\'s kilometres for the week in one go. Leave a box blank to skip that person.</p>' +
-      '<div class="field" style="max-width:220px;"><label for="b-date">Week ending</label>' +
-      '<input id="b-date" type="date" value="' + todayStr() + '" min="2026-09-15" max="2026-10-15" /></div>' +
+      '<div class="admin-section"><h4>Record kilometres</h4>' +
+      '<p class="section-hint">Pick the date the runs happened, then fill in whoever ran. ' +
+      'You can come back and add more for the same date any time.</p>' +
+      '<div class="field" style="max-width:230px;"><label for="b-date">Date of run</label>' +
+      '<input id="b-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="2026-10-15" /></div>' +
+      (Object.keys(state.onDate || {}).length
+        ? '<div class="date-notice">Already recorded for this date — anything you add now is <strong>on top</strong> of it.</div>'
+        : '') +
       '<div class="bulk-grid">' +
-      g.members.map(m => '<div class="bulk-row">' +
+      g.members.map(m => {
+        const already = (state.onDate || {})[m.employeeId];
+        return '<div class="bulk-row">' +
         '<div class="bulk-avatar">' + esc(initials(m.name)) + '</div>' +
         '<div class="bulk-name">' + esc(m.name) + (m.role==='leader'?' <span class="lead-tag">YOU</span>':'') +
-        '<span class="bulk-total">' + Number(m.km).toFixed(1) + ' km so far</span></div>' +
+        '<span class="bulk-total">' + Number(m.km).toFixed(1) + ' km total' +
+        (already ? ' · <span class="already-chip">' + Number(already).toFixed(1) + ' km this date</span>' : '') +
+        '</span></div>' +
         '<input class="bulk-km" data-id="' + esc(m.employeeId) + '" type="number" step="0.1" min="0" max="200" placeholder="0" />' +
-        '</div>').join('') +
+        '</div>'; }).join('') +
       '</div>' +
-      '<button class="submit-btn" id="b-save" style="margin-top:14px;">Save weekly update</button>' +
+      '<button class="submit-btn" id="b-save" style="margin-top:14px;">Save entries</button>' +
       '<div id="b-status"></div></div>' +
 
-      (state.myWeeks && state.myWeeks.length ? '<div class="admin-section"><h4>Already recorded</h4>' +
-        '<div class="week-strip">' + state.myWeeks.map(w =>
-          '<div class="week-chip"><div class="wc-date">' + esc(w.week_start) + '</div>' +
-          '<div class="wc-km">' + Number(w.km).toFixed(1) + ' km</div></div>').join('') +
+      (state.myDays && state.myDays.length ? '<div class="admin-section"><h4>Recorded by date</h4>' +
+        '<p class="section-hint">Tap a date to load it above and add more.</p>' +
+        '<div class="week-strip">' + state.myDays.map(d =>
+          '<button class="week-chip day-chip" data-date="' + esc(d.run_date) + '">' +
+          '<div class="wc-date">' + esc(fmtShort(d.run_date)) + '</div>' +
+          '<div class="wc-km">' + Number(d.km).toFixed(1) + ' km</div>' +
+          '<div class="wc-sub">' + d.runners + ' runner' + (d.runners === 1 ? '' : 's') + '</div></button>').join('') +
         '</div></div>' : '') +
 
       '<div class="admin-section"><h4>Your team (' + g.members.length + '/' + g.maxGroupSize + ')</h4>' +
@@ -1311,6 +1333,20 @@
             '" style="padding:4px 9px;font-size:11px;">Remove</button></td></tr>').join('') + '</table></div>') +
       '</div>';
 
+    p.querySelector('#b-date').addEventListener('change', async function () {
+      state.entryDate = this.value;
+      try { state.onDate = await api.onDate(state.token, state.entryDate); } catch (e) { state.onDate = {}; }
+      render();
+    });
+
+    p.querySelectorAll('.day-chip').forEach(function (chip) {
+      chip.addEventListener('click', async function () {
+        state.entryDate = chip.dataset.date;
+        try { state.onDate = await api.onDate(state.token, state.entryDate); } catch (e) { state.onDate = {}; }
+        render();
+      });
+    });
+
     p.querySelector('#b-save').addEventListener('click', async function () {
       const date = p.querySelector('#b-date').value;
       const st = p.querySelector('#b-status'), btn = p.querySelector('#b-save');
@@ -1334,11 +1370,11 @@
           }
         } else {
           st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not save.') + '</div>';
-          btn.disabled = false; btn.textContent = 'Save weekly update';
+          btn.disabled = false; btn.textContent = 'Save entries';
         }
       } catch (e) {
         st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
-        btn.disabled = false; btn.textContent = 'Save weekly update';
+        btn.disabled = false; btn.textContent = 'Save entries';
       }
     });
 
