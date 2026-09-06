@@ -1280,7 +1280,8 @@
       '<p class="section-hint">Pick the date the runs happened, then fill in whoever ran. ' +
       'You can come back and add more for the same date any time.</p>' +
       '<div class="field" style="max-width:230px;"><label for="b-date">Date of run</label>' +
-      '<input id="b-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="2026-10-15" /></div>' +
+      '<input id="b-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="' + todayStr() + '" /></div>' +
+      '<p class="section-hint" style="margin-top:-6px;">Runs can only be recorded for today or earlier.</p>' +
       (Object.keys(state.onDate || {}).length
         ? '<div class="date-notice">Already recorded for this date — anything you add now is <strong>on top</strong> of it.</div>'
         : '') +
