@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Run Challenge" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Archivo+Black&display=swap');
   * { box-sizing: border-box; }
   body { margin: 0; font-family: 'Inter', sans-serif; color: #16202B; background: #E9EBEE; }
 
@@ -714,6 +714,31 @@
   .plr-num { display:block; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:#6FE0CC; }
   .plr-lbl { display:block; font-size:10.5px; color:#8FA3B8; line-height:1.35; margin-top:3px; }
 
+  /* ---------- Display type for the big motivational moments ---------- */
+  .impact { font-family:'Archivo Black', 'Space Grotesk', sans-serif; letter-spacing:-0.02em; }
+
+  .pl-title { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:25px; line-height:1.1;
+    letter-spacing:-0.02em; margin-top:10px; text-transform:uppercase; }
+  .pl-date { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:17px; letter-spacing:0.01em;
+    color:#6FE0CC; margin-top:5px; text-transform:uppercase; }
+  .pl-unit .v { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:27px; }
+  .pl-line { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:14.5px;
+    text-transform:uppercase; letter-spacing:0.03em; }
+  .plr-num { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+
+  .cd-unit .v { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .ring-pct { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .ring-km { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .race-count { font-family:'Archivo Black','Space Grotesk',sans-serif; text-transform:uppercase; font-size:20px; }
+  .board-h1 { font-family:'Archivo Black','Space Grotesk',sans-serif; letter-spacing:-0.025em; }
+  .hero-headline { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .finish-banner strong { font-family:'Archivo Black','Space Grotesk',sans-serif; text-transform:uppercase; letter-spacing:0.01em; }
+  .group-km .v { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .today-group { font-family:'Archivo Black','Space Grotesk',sans-serif; text-transform:uppercase; font-size:18px; letter-spacing:-0.01em; }
+  .tr-km { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .stat-cell .num { font-family:'Archivo Black','Space Grotesk',sans-serif; }
+  .reg-h1, .welcome-h1 { font-family:'Archivo Black','Space Grotesk',sans-serif; letter-spacing:-0.025em; }
+
 </style>
 </head>
 <body>
@@ -843,14 +868,16 @@
       const runnersIn = s.totalRunners || 0;
       const runnersNeeded = (s.runnersPerGroup || 10) * (s.groups || []).length;
       const line = cd.days > 7
-        ? 'Time to rally your runners.'
-        : (cd.days > 1 ? 'Nearly there — lace up.' : (cd.days === 1 ? 'Tomorrow. Get ready.' : 'It starts today!'));
+        ? 'Rally your runners.'
+        : (cd.days > 3 ? 'One week out. Get ready.'
+        : (cd.days > 1 ? 'Almost time. Lace up.'
+        : (cd.days === 1 ? 'Tomorrow. This is it.' : 'Today. Go.')));
 
       return '<div class="prelaunch-card">' +
         '<div class="pl-glow"></div>' +
         '<div class="pl-inner">' +
-        '<div class="pl-eyebrow">🏁 Starting line</div>' +
-        '<div class="pl-title">The challenge begins</div>' +
+        '<div class="pl-eyebrow">🏁 The starting line</div>' +
+        '<div class="pl-title">We run together</div>' +
         '<div class="pl-date">' + esc(cd.startLabel) + '</div>' +
         '<div class="pl-units">' +
         '<div class="pl-unit"><div class="v" id="cd-d">' + cd.days + '</div><div class="l">Days</div></div>' +
@@ -867,7 +894,7 @@
     if (cd.ended) {
       return '<div class="countdown-card"><div class="countdown-top"><span class="countdown-label">Challenge Complete</span>' +
         '<span class="countdown-ends">Ended ' + esc(cd.endLabel) + '</span></div>' +
-        '<div class="countdown-ended">🏁 Final results are in</div>' +
+        '<div class="countdown-ended">🏁 That is a wrap — final results are in</div>' +
         '<div class="cd-progress-track"><div class="cd-progress-fill" style="width:100%"></div></div></div>';
     }
     return '<div class="countdown-card"><div class="countdown-top"><span class="countdown-label">Time Remaining</span>' +
@@ -1068,8 +1095,8 @@
       '<div class="ring-body"><div class="ring-title">Your progress</div>' +
       '<div class="ring-km">' + myKm.toFixed(1) + '<small> / ' + target + ' km</small></div>' +
       '<div class="ring-note">' + (done
-        ? '🎉 <strong>Target complete!</strong> Extra km still lift ' + esc(groupName) + '.'
-        : '<strong>' + left.toFixed(1) + ' km</strong> to go — keep at it.') +
+        ? '🎉 <strong>50 km done!</strong> Every extra km still lifts ' + esc(groupName) + '.'
+        : '<strong>' + left.toFixed(1) + ' km</strong> to go. Your group is counting on it.') +
       '</div></div></div>';
   }
 
@@ -1272,7 +1299,7 @@
           '</div><div class="race-note">' +
           (myGroup.needsMembers > 0
             ? '⚠️ Group needs ' + myGroup.needsMembers + ' more runner' + (myGroup.needsMembers === 1 ? '' : 's') + ' before it can finish.'
-            : (s.maxGroupSize - myGroup.membersHitTarget) + ' teammate' + ((s.maxGroupSize - myGroup.membersHitTarget) === 1 ? '' : 's') + ' still to reach 50 km.') +
+            : (s.maxGroupSize - myGroup.membersHitTarget) + ' teammate' + ((s.maxGroupSize - myGroup.membersHitTarget) === 1 ? '' : 's') + ' still to reach 50 km. Nobody finishes alone.') +
           '</div></div>') : '') +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">#' + rank + '</div><div class="label">Group rank</div></div>' +
