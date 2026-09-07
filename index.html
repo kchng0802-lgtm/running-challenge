@@ -973,22 +973,22 @@
       '<ellipse cx="170" cy="55" rx="150" ry="45" fill="none" stroke="rgba(227,166,47,0.28)" stroke-width="2" stroke-dasharray="3 9" />' + runner + '</svg></div>' +
       '<div class="landing-content">' +
       '<div class="brand-row landing-fade d1"><div class="logo-tile">' + emblem(30) + '</div><div class="brand-name">Broadcom Run 2026</div></div>' +
-      '<div class="hero-eyebrow landing-fade d2">15 Sep — 15 Oct • 50 km each</div>' +
-      '<h1 class="hero-headline landing-fade d2">Every kilometre <span class="accent-grad">moves your group forward.</span></h1>' +
-      '<p class="sub-dark landing-fade d3">Ten groups. Ten runners each. 500 km per group to finish the month.</p>' +
+      '<div class="hero-eyebrow landing-fade d2">31 days • 50 km • one team</div>' +
+      '<h1 class="hero-headline landing-fade d2">Fifty kilometres. <span class="accent-grad">Ten of you. One finish line.</span></h1>' +
+      '<p class="sub-dark landing-fade d3">Your group only crosses the line when every runner has done their 50 km. No shortcuts, no passengers — just ten people getting each other there.</p>' +
       '<p class="hero-footnote landing-fade d3">Corporate Wellness Challenge • Internal Use</p>' +
       '<div class="landing-fade d3" id="ticker-slot"></div>' +
       '<div class="quickstart-card landing-fade d4"><div class="card-top-bar"></div>' +
       '<div class="badge-row"><span class="pill-live"><span class="pulse-dot"></span>LIVE CHALLENGE</span>' +
       '<span class="secure-tag">🔒 Employees only</span></div>' +
-      '<div class="card-heading">Sign in</div>' +
-      '<div class="card-sub">First time here? Enter your Employee ID and we\'ll help you set a password.</div>' +
+      '<div class="card-heading">Ready when you are</div>' +
+      '<div class="card-sub">First time? Just enter your Employee ID — we\'ll sort the rest.</div>' +
       '<div class="field-dark"><label for="l-id">Employee ID</label><div class="input-wrap">' +
       '<input id="l-id" type="text" placeholder="e.g. BRCM10234" autocomplete="username" /><span class="input-icon">👤</span></div></div>' +
       '<div class="field-dark"><label for="l-pw">Password</label><div class="input-wrap">' +
       '<input id="l-pw" type="password" placeholder="Your password" autocomplete="current-password" /><span class="input-icon">🔒</span></div></div>' +
       '<button class="cta-gradient" id="l-btn">Sign in →</button><div id="l-status"></div></div>' +
-      '<button class="link-btn-dark landing-fade d5" id="pub-btn">View standings without signing in</button>' +
+      '<button class="link-btn-dark landing-fade d5" id="pub-btn">See who\'s winning →</button>' +
       '</div></div>';
 
     const doLogin = async function () {
@@ -1048,7 +1048,7 @@
       '<div class="reg-screen"><div class="success-tile">🔑</div>' +
       '<div class="id-chip"><span class="lbl">Employee</span> ' + esc(a.employeeId) + '</div>' +
       '<h1 class="reg-h1">Welcome, ' + esc(a.name.split(' ')[0]) + '.</h1>' +
-      '<p class="reg-sub">Your group leader has added you. Choose a password to finish setting up your account.</p>' +
+      '<p class="reg-sub">Your group is expecting you. Pick a password and you\'re on the team.</p>' +
       '<div class="field"><label for="p1">Create password</label><input id="p1" type="password" placeholder="At least 6 characters" autocomplete="new-password" /></div>' +
       '<div class="field"><label for="p2">Confirm password</label><input id="p2" type="password" placeholder="Type it again" autocomplete="new-password" /></div>' +
       '<button class="back-btn-wide" id="back">← Back</button>' +
@@ -1116,11 +1116,11 @@
   function topRunnersHtml(s) {
     if (!s.topRunners || !s.topRunners.length) {
       return '<div class="empty-hero" style="margin-bottom:20px;"><div class="icon">🏃</div>' +
-        '<div class="eh-title">No runs recorded yet</div>' +
-        '<div class="eh-text">Once leaders start logging kilometres, the top three runners appear here.</div></div>';
+        '<div class="eh-title">The board is wide open</div>' +
+        '<div class="eh-text">First three runners to log kilometres take these spots.</div></div>';
     }
     const medals = ['🥇','🥈','🥉'];
-    return '<div class="podium-card"><div class="podium-title">Top Runners</div>' +
+    return '<div class="podium-card"><div class="podium-title">Leading the pack</div>' +
       s.topRunners.map(function (r, i) {
         return '<div class="tr-row"><span class="tr-medal">' + medals[i] + '</span>' +
           '<div class="tr-avatar">' + esc(initials(r.name)) + '</div>' +
@@ -1131,8 +1131,8 @@
   }
 
   function todayCardHtml(s) {
-    if (!s.topToday) return '<div class="today-card empty">🌙 No runs logged today yet — be the first.</div>';
-    return '<div class="today-card"><div class="today-label">🔥 Leading today</div>' +
+    if (!s.topToday) return '<div class="today-card empty">🌙 Nobody has run today. Someone has to go first.</div>';
+    return '<div class="today-card"><div class="today-label">🔥 Out in front today</div>' +
       '<div class="today-group">' + esc(s.topToday.groupName) + '</div>' +
       '<div class="today-km">' + s.topToday.km.toFixed(1) + ' km logged today</div></div>';
   }
@@ -1209,7 +1209,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">15 Sep – 15 Oct · 1 leader + 10 runners per group</p></div>' +
+      '<p class="board-h1-sub">First group to get all ten runners to 50 km takes it</p></div>' +
       cdHtml(computeCd(s)) + todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">' + s.groups.length + '</div><div class="label">Groups</div></div>' +
@@ -1314,7 +1314,7 @@
             ? 'Head to Manage Team to add your runners.'
             : 'Your leader is still setting up the team.') + '</div></div>') +
       (state.profile.role === 'member'
-        ? '<div class="readonly-note">📋 Your group leader records everyone\'s kilometres. Pass your runs to them each week.</div>'
+        ? '<div class="readonly-note">📋 Send your kilometres to your group leader and they\'ll put them on the board. Every one counts toward your fifty.</div>'
         : '') +
       '<div class="admin-section" style="margin-top:26px;"><h4>Change your password</h4>' +
       '<div class="admin-config-grid">' +
@@ -1352,7 +1352,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">First group with all 10 runners at 50 km wins</p></div>' +
+      '<p class="board-h1-sub">Finishing beats distance — get everyone across</p></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
     wireGroupRows(p);
@@ -1366,7 +1366,7 @@
     const full = g.members.length >= g.maxGroupSize;
 
     p.innerHTML =
-      '<div class="leader-note">👤 As group leader you organise and record — your own runs don\'t count toward the group total. The 10 runners below do.</div>' +
+      '<div class="leader-note">👤 You keep the score. Your own runs aren\'t counted — the ten runners below are the ones who get your group across the line.</div>' +
       '<div class="admin-section"><h4>Record kilometres</h4>' +
       '<p class="section-hint">Pick the date the runs happened, then fill in whoever ran. ' +
       'You can come back and add more for the same date any time.</p>' +
@@ -1417,8 +1417,8 @@
       '</div>' +
 
       '<div class="admin-section"><h4>Recent entries</h4>' +
-      (!g.entries.length ? '<div class="empty-hero"><div class="icon">📋</div><div class="eh-title">Nothing recorded yet</div>' +
-          '<div class="eh-text">Kilometres you record will appear here so you can check or correct them.</div></div>'
+      (!g.entries.length ? '<div class="empty-hero"><div class="icon">📋</div><div class="eh-title">Clean slate</div>' +
+          '<div class="eh-text">Every kilometre you record shows up here, so you can check or fix it later.</div></div>'
         : '<div class="table-wrap"><table class="admin-table"><tr><th>Date</th><th>Member</th><th>km</th><th></th></tr>' +
           g.entries.slice(0, 30).map(e => '<tr><td class="mono">' + esc(e.date) + '</td><td>' + esc(e.name) + '</td>' +
             '<td>' + Number(e.km).toFixed(1) + '</td><td><button class="ghost-btn del-entry" data-id="' + e.id +
