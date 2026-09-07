@@ -691,6 +691,8 @@
   .day-chip:hover { border-color:var(--teal); transform:translateY(-1px); }
   .wc-sub { font-size:9.5px; color:var(--ink-soft); margin-top:1px; }
 
+  .leader-note { background:var(--navy); color:#C3D2E0; border-radius:12px; padding:14px 16px; font-size:13px; line-height:1.5; margin-bottom:20px; }
+
 </style>
 </head>
 <body>
@@ -1088,9 +1090,9 @@
         ? '<span class="fin-badge">🏁 Finished ' + esc(fmtShort(g.finishDate)) + '</span>'
         : '';
       const meta = g.isFinished
-        ? 'All ' + g.memberCount + ' members completed 50 km'
+        ? 'All ' + g.memberCount + ' runners completed 50 km'
         : g.membersHitTarget + '/' + s.maxGroupSize + ' done' +
-          (g.needsMembers > 0 ? ' · needs ' + g.needsMembers + ' more member' + (g.needsMembers === 1 ? '' : 's') : '') +
+          (g.needsMembers > 0 ? ' · needs ' + g.needsMembers + ' more runner' + (g.needsMembers === 1 ? '' : 's') : '') +
           (g.hasLeader ? '' : ' · no leader yet');
       return '<div class="group-row' + rankCls + ' ' + (mine ? 'is-mine' : '') + (g.isFinished ? ' finished' : '') + '" data-gid="' + g.id + '">' +
         '<div class="group-row-head"><span class="group-rank">' + (g.isFinished && i < 3 ? medals[i] : (i+1)) + '</span>' +
@@ -1128,7 +1130,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE STANDINGS</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">15 Sep – 15 Oct · first group with all 10 at 50 km wins</p></div>' +
+      '<p class="board-h1-sub">15 Sep – 15 Oct · 1 leader + 10 runners per group</p></div>' +
       cdHtml(computeCd(s)) + todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="stat-strip">' +
       '<div class="stat-cell"><div class="num">' + s.groups.length + '</div><div class="label">Groups</div></div>' +
@@ -1195,9 +1197,13 @@
     const left = Math.max(0, s.perPersonTargetKm - myKm);
     const rank = s.groups.findIndex(g => g.id === state.profile.groupId) + 1;
 
+    const isLeaderRole = state.profile.role === 'leader';
     p.innerHTML = cdHtml(computeCd(s)) +
-      ringCard(myKm, s.perPersonTargetKm, myGroup ? myGroup.name : 'your group') +
-      badgeStrip(myKm, s.perPersonTargetKm) +
+      (isLeaderRole
+        ? '<div class="leader-note">👤 You lead ' + esc(myGroup ? myGroup.name : 'this group') +
+          '. Your job is recording the 10 runners below — your own runs are not scored.</div>'
+        : ringCard(myKm, s.perPersonTargetKm, myGroup ? myGroup.name : 'your group') +
+          badgeStrip(myKm, s.perPersonTargetKm)) +
       (myGroup ? (myGroup.isFinished
         ? '<div class="finish-banner">🏁 <strong>' + esc(myGroup.name) + ' has finished!</strong><br>' +
           '<small>All members completed 50 km on ' + esc(fmtShort(myGroup.finishDate)) + '</small></div>'
@@ -1208,7 +1214,7 @@
             '<span class="race-dot' + (i < myGroup.membersHitTarget ? ' lit' : '') + '"></span>').join('') +
           '</div><div class="race-note">' +
           (myGroup.needsMembers > 0
-            ? '⚠️ Group needs ' + myGroup.needsMembers + ' more member' + (myGroup.needsMembers === 1 ? '' : 's') + ' before it can finish.'
+            ? '⚠️ Group needs ' + myGroup.needsMembers + ' more runner' + (myGroup.needsMembers === 1 ? '' : 's') + ' before it can finish.'
             : (s.maxGroupSize - myGroup.membersHitTarget) + ' teammate' + ((s.maxGroupSize - myGroup.membersHitTarget) === 1 ? '' : 's') + ' still to reach 50 km.') +
           '</div></div>') : '') +
       '<div class="stat-strip">' +
@@ -1216,7 +1222,7 @@
       '<div class="stat-cell"><div class="num">' + (myGroup ? myGroup.membersHitTarget : 0) + '/' + s.maxGroupSize + '</div><div class="label">Hit 50 km</div></div>' +
       '<div class="stat-cell"><div class="num">' + (s.finishedCount || 0) + '</div><div class="label">Groups done</div></div></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
-      '<div class="board-title">' + esc(myGroup ? myGroup.name : 'Your group') + ' — Member Progress</div>' +
+      '<div class="board-title">' + esc(myGroup ? myGroup.name : 'Your group') + ' — Runner Progress</div>' +
       (myGroup && myGroup.members.length
         ? '<div class="member-list standalone">' + myGroup.members.map(memberRowHtml).join('') + '</div>'
         : '<div class="empty-hero"><div class="icon">👥</div><div class="eh-title">No members yet</div>' +
@@ -1262,7 +1268,7 @@
     p.innerHTML =
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
-      '<p class="board-h1-sub">First group with all 10 members at 50 km wins</p></div>' +
+      '<p class="board-h1-sub">First group with all 10 runners at 50 km wins</p></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
     wireGroupRows(p);
@@ -1276,6 +1282,7 @@
     const full = g.members.length >= g.maxGroupSize;
 
     p.innerHTML =
+      '<div class="leader-note">👤 As group leader you organise and record — your own runs don\'t count toward the group total. The 10 runners below do.</div>' +
       '<div class="admin-section"><h4>Record kilometres</h4>' +
       '<p class="section-hint">Pick the date the runs happened, then fill in whoever ran. ' +
       'You can come back and add more for the same date any time.</p>' +
@@ -1309,20 +1316,20 @@
           '<div class="wc-sub">' + d.runners + ' runner' + (d.runners === 1 ? '' : 's') + '</div></button>').join('') +
         '</div></div>' : '') +
 
-      '<div class="admin-section"><h4>Your team (' + g.members.length + '/' + g.maxGroupSize + ')</h4>' +
+      '<div class="admin-section"><h4>Your runners (' + g.members.length + '/' + g.maxGroupSize + ')</h4>' +
       '<div class="table-wrap"><table class="admin-table"><tr><th>Name</th><th>ID</th><th>km</th><th>Login</th></tr>' +
       g.members.map(m => '<tr><td>' + esc(m.name) + (m.role==='leader'?' <span class="lead-tag">LEADER</span>':'') + '</td>' +
         '<td class="mono">' + esc(m.employeeId) + '</td><td><strong>' + Number(m.km).toFixed(1) + '</strong></td>' +
         '<td>' + (m.hasPassword ? '<span style="color:#1F9C8C">✓ active</span>' : '<span style="color:#8A6110">pending</span>') + '</td></tr>').join('') +
       '</table></div></div>' +
 
-      '<div class="admin-section"><h4>Add a member</h4>' +
-      (full ? '<div class="error-msg">Your group is full (10 members).</div>'
+      '<div class="admin-section"><h4>Add a runner</h4>' +
+      (full ? '<div class="error-msg">Your group already has all ' + g.maxGroupSize + ' runners.</div>'
         : '<p class="section-hint">They will set their own password the first time they sign in.</p>' +
           '<div class="admin-config-grid">' +
           '<div class="field"><label for="a-id">Employee ID</label><input id="a-id" type="text" placeholder="BRCM10234" /></div>' +
           '<div class="field"><label for="a-name">Name</label><input id="a-name" type="text" placeholder="Full name" /></div></div>' +
-          '<button class="submit-btn" id="a-save" style="max-width:220px;margin-top:12px;">Add member</button><div id="a-status"></div>') +
+          '<button class="submit-btn" id="a-save" style="max-width:220px;margin-top:12px;">Add runner</button><div id="a-status"></div>') +
       '</div>' +
 
       '<div class="admin-section"><h4>Recent entries</h4>' +
@@ -1389,8 +1396,8 @@
       try {
         const r = await api.addMember(state.token, id, name);
         if (r && r.success) { await goToTab('manage'); }
-        else { st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not add.') + '</div>'; addBtn.disabled = false; addBtn.textContent = 'Add member'; }
-      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; addBtn.disabled = false; addBtn.textContent = 'Add member'; }
+        else { st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not add.') + '</div>'; addBtn.disabled = false; addBtn.textContent = 'Add runner'; }
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; addBtn.disabled = false; addBtn.textContent = 'Add runner'; }
     });
 
     p.querySelectorAll('.del-entry').forEach(function (b) {
