@@ -1350,12 +1350,14 @@
     const s = state.standings;
     if (!s) { p.innerHTML = '<div class="empty-state">Could not load the leaderboard.</div>'; return; }
     p.innerHTML =
+      cdHtml(computeCd(s)) +
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
       '<p class="board-h1-sub">Finishing beats distance — get everyone across</p></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
       '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
     wireGroupRows(p);
+    startCd(s);
   }
 
   // ---------- Leader: manage team ----------
