@@ -844,7 +844,10 @@
   function computeCd(s) {
     if (!s || !s.endDate) return null;
     const end = new Date(s.endDate + 'T23:59:59');
-    const start = s.startDate ? new Date(s.startDate + 'T00:00:00') : null;
+    // Count down to the real launch date, not the (possibly relaxed)
+    // date from which practice entries are allowed.
+    const launch = (s.launchDate || s.startDate);
+    const start = launch ? new Date(launch + 'T00:00:00') : null;
     const now = new Date(), ms = end - now;
     const fmt = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
     if (start && now < start) {
