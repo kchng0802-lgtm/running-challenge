@@ -1209,6 +1209,7 @@
       const finLabel = g.isFinished
         ? '<span class="fin-badge">🏁 Finished ' + esc(fmtShort(g.finishDate)) + '</span>'
         : '';
+      const lead = g.leaderName ? '<span class="grp-lead">👤 ' + esc(g.leaderName) + '</span>' : '';
       const meta = g.isFinished
         ? 'All ' + g.memberCount + ' runners completed 50 km'
         : g.membersHitTarget + '/' + s.maxGroupSize + ' done' +
