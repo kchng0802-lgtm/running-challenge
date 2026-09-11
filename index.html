@@ -767,6 +767,54 @@
   .today-card.empty { padding:11px 14px; font-size:12.5px; }
   .grp-lead { display:block; margin-top:2px; font-size:11px; color:var(--ink-soft); font-weight:600; }
 
+  /* ---------- Live competition control centre ---------- */
+  .cc { background:linear-gradient(155deg,#071A30,#0B2A4A 60%,#0d3d5c); color:#fff;
+    border-radius:18px; padding:18px 18px 16px; margin-bottom:20px; position:relative; overflow:hidden;
+    box-shadow:0 10px 30px rgba(11,42,74,0.22); }
+  .cc::after { content:''; position:absolute; top:-60px; right:-60px; width:190px; height:190px;
+    background:radial-gradient(circle,rgba(56,198,179,0.30),transparent 70%); filter:blur(22px); }
+  .cc-head { position:relative; z-index:1; margin-bottom:14px; }
+  .cc-eyebrow { display:block; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600;
+    color:#6FE0CC; text-transform:uppercase; letter-spacing:0.15em; }
+  .cc-headline { display:block; font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:19px;
+    margin-top:5px; letter-spacing:-0.01em; }
+
+  .cc-race { position:relative; z-index:1; margin-bottom:16px; }
+  .cc-race-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px; }
+  .cc-team { font-size:13px; font-weight:700; color:#C3D2E0; }
+  .cc-pct { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:17px; color:#6FE0CC; }
+  .cc-bar { position:relative; height:11px; border-radius:6px; background:rgba(255,255,255,0.10); overflow:visible; }
+  .cc-bar-fill { height:100%; border-radius:6px; background:linear-gradient(90deg,#1F9C8C,#38C6B3,#6FE0CC);
+    transition:width 0.8s cubic-bezier(0.4,0,0.2,1); }
+  .cc-ghost { position:absolute; top:-4px; width:3px; height:19px; border-radius:2px; background:#E3A62F;
+    transform:translateX(-50%); box-shadow:0 0 8px rgba(227,166,47,0.7); }
+  .cc-race-foot { font-size:11px; color:#8FA3B8; margin-top:8px; }
+
+  .cc-kpis { position:relative; z-index:1; display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+  .cc-kpi { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10);
+    border-radius:11px; padding:11px 5px; text-align:center; }
+  .cc-kpi .k-v { font-family:'Archivo Black','Space Grotesk',sans-serif; font-size:19px; line-height:1; color:#fff; }
+  .cc-kpi .k-v.gold { color:#E3A62F; }
+  .cc-kpi .k-l { font-size:8.5px; color:#8FA3B8; text-transform:uppercase; letter-spacing:0.05em;
+    margin-top:5px; line-height:1.25; }
+
+  /* ---------- Sticky tabs ---------- */
+  .tabs { position:sticky; top:0; z-index:20; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+
+  /* ---------- Interaction polish ---------- */
+  .group-row { transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+  .group-row:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(11,42,74,0.10); }
+  .group-row.rank-1:hover { box-shadow:0 6px 20px rgba(227,166,47,0.22); }
+  .tr-row { transition:background 0.15s ease; border-radius:8px; }
+  .tr-row:hover { background:rgba(31,156,140,0.06); }
+  .group-km .v small { font-size:11px; font-weight:700; opacity:0.65; margin-left:1px; }
+  .group-km .u { font-family:'IBM Plex Mono',monospace; font-size:9px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .group-row:hover { transform:none; }
+    .cc-bar-fill { transition:none; }
+  }
+
 </style>
 </head>
 <body>
@@ -1145,6 +1193,57 @@
     ).join('') + '</div>';
   }
 
+  function controlCentre(s) {
+    const groups = s.groups || [];
+    if (!groups.length) return '';
+
+    // Which group is "mine"? Leaders/runners have one; viewers don't.
+    const myGid = state.profile ? (state.profile.runsForGroupId || state.profile.groupId) : null;
+    const idx = myGid ? groups.findIndex(g => g.id === myGid) : -1;
+    const mine = idx >= 0 ? groups[idx] : null;
+    const ahead = idx > 0 ? groups[idx - 1] : null;
+
+    const finishers = groups.reduce((n, g) => n + g.membersHitTarget, 0);
+    const totalRunners = s.totalRunners || 0;
+    const pct = mine && mine.groupTargetKm ? Math.min(100, (mine.countedKm / mine.groupTargetKm) * 100) : 0;
+
+    // Gap is measured in counted km — the number that actually decides rank
+    let gapText = '—', gapLabel = 'Gap to next';
+    if (mine && ahead) {
+      const gap = Math.max(0, ahead.countedKm - mine.countedKm);
+      gapText = gap.toFixed(0);
+      gapLabel = 'km behind ' + ahead.name;
+    } else if (mine && idx === 0) {
+      gapText = '1st';
+      const chaser = groups[1];
+      gapLabel = chaser ? (mine.countedKm - chaser.countedKm).toFixed(0) + ' km clear' : 'Leading';
+    }
+
+    const headline = mine
+      ? (idx === 0 ? 'You are leading' : 'Chasing ' + esc(ahead ? ahead.name : ''))
+      : 'Challenge status';
+
+    return '<div class="cc">' +
+      '<div class="cc-head"><span class="cc-eyebrow">◉ Live standings</span>' +
+      '<span class="cc-headline">' + headline + '</span></div>' +
+      (mine ? '<div class="cc-race">' +
+        '<div class="cc-race-top"><span class="cc-team">' + esc(mine.name) + '</span>' +
+        '<span class="cc-pct">' + Math.round(pct) + '%</span></div>' +
+        '<div class="cc-bar"><div class="cc-bar-fill" style="width:' + pct + '%"></div>' +
+        (ahead ? '<div class="cc-ghost" style="left:' + Math.min(100, (ahead.countedKm / ahead.groupTargetKm) * 100) + '%"></div>' : '') +
+        '</div>' +
+        '<div class="cc-race-foot">' + mine.countedKm.toFixed(0) + ' / ' + mine.groupTargetKm + ' km counted' +
+        (ahead ? ' · ghost marker shows ' + esc(ahead.name) : '') + '</div></div>' : '') +
+      '<div class="cc-kpis">' +
+        '<div class="cc-kpi"><div class="k-v">' + (mine ? '#' + (idx + 1) : groups.length) + '</div>' +
+        '<div class="k-l">' + (mine ? 'Your rank' : 'Teams racing') + '</div></div>' +
+        '<div class="cc-kpi"><div class="k-v">' + groups.length + '</div><div class="k-l">Teams racing</div></div>' +
+        '<div class="cc-kpi"><div class="k-v">' + finishers + '</div><div class="k-l">Hit 50 km</div></div>' +
+        '<div class="cc-kpi"><div class="k-v ' + (gapText === '1st' ? 'gold' : '') + '">' + gapText + '</div>' +
+        '<div class="k-l">' + esc(gapLabel) + '</div></div>' +
+      '</div></div>';
+  }
+
   function topRunnersHtml(s) {
     if (!s.topRunners || !s.topRunners.length) {
       return '<div class="empty-hero" style="margin-bottom:20px;"><div class="icon">🏃</div>' +
@@ -1221,7 +1320,8 @@
         (mine ? '<span class="you-tag">YOUR GROUP</span>' : '') + finLabel + '</div>' +
         '<div class="group-meta">' + meta + lead + '</div>' +
         '<div class="group-bar-track"><div class="group-bar-fill' + (g.isFinished ? ' done' : '') + '" style="width:' + pct + '%"></div></div></div>' +
-        '<div class="group-km"><div class="v">' + g.countedKm.toFixed(0) + '</div><div class="u">/ ' + g.groupTargetKm + ' km</div></div></div>' +
+        '<div class="group-km"><div class="v">' + Math.round(pct) + '<small>%</small></div>' +
+        '<div class="u">' + g.countedKm.toFixed(0) + ' / ' + g.groupTargetKm + '</div></div></div>' +
         (open ? '<div class="member-list">' +
           (!g.members.length ? '<div class="member-empty">No members yet.</div>' : g.members.map(memberRowHtml).join('')) +
           '</div>' : '') + '</div>';
@@ -1325,6 +1425,7 @@
 
     const isLeaderRole = state.profile.role === 'leader';
     p.innerHTML = cdHtml(computeCd(s)) +
+      controlCentre(s) +
       (isLeaderRole
         ? '<div class="leader-note">👤 You lead ' + esc(myGroup ? myGroup.name : 'this group') +
           '. Your job is recording the 10 runners below — your own runs are not scored.</div>'
@@ -1393,6 +1494,7 @@
     if (!s) { p.innerHTML = '<div class="empty-state">Could not load the leaderboard.</div>'; return; }
     p.innerHTML =
       cdHtml(computeCd(s)) +
+      controlCentre(s) +
       '<div class="board-header"><span class="live-pill"><span class="dot"></span>LIVE LEADERBOARD</span>' +
       '<h2 class="board-h1">Group scoreboard</h2>' +
       '<p class="board-h1-sub">Finishing beats distance — get everyone across</p></div>' +
