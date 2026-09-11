@@ -739,6 +739,33 @@
   .stat-cell .num { font-family:'Archivo Black','Space Grotesk',sans-serif; }
   .reg-h1, .welcome-h1 { font-family:'Archivo Black','Space Grotesk',sans-serif; letter-spacing:-0.025em; }
 
+  /* ---------- Scrollable group board ---------- */
+  .board-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:8px; padding:0 2px; }
+  .bt-count { font-size:11.5px; font-weight:700; color:var(--ink); text-transform:uppercase; letter-spacing:0.07em; }
+  .bt-done { font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; background:var(--teal-light);
+    color:#146B5F; padding:2px 7px; border-radius:4px; }
+  .bt-hint { margin-left:auto; font-size:11px; color:var(--ink-soft); font-style:italic; }
+
+  .group-scroll {
+    max-height:58vh; min-height:220px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:8px 10px; border:1px solid var(--line); border-radius:14px; background:var(--paper);
+    overscroll-behavior:contain;
+  }
+  .group-scroll::-webkit-scrollbar { width:6px; }
+  .group-scroll::-webkit-scrollbar-thumb { background:#C6CFD6; border-radius:3px; }
+  .group-scroll::-webkit-scrollbar-track { background:transparent; }
+  .group-scroll .group-row:last-child { margin-bottom:0; }
+
+  /* Cap a long expanded member list so one group can't fill the scroller */
+  .group-row .member-list { max-height:280px; overflow-y:auto; overscroll-behavior:contain; }
+
+  /* ---------- Compact empty states (they were eating the screen) ---------- */
+  .empty-hero { padding:20px 18px; }
+  .empty-hero .icon { font-size:26px; margin-bottom:7px; }
+  .empty-hero .eh-title { font-size:14.5px; margin-bottom:3px; }
+  .empty-hero .eh-text { font-size:12.5px; line-height:1.45; }
+  .today-card.empty { padding:11px 14px; font-size:12.5px; }
+
 </style>
 </head>
 <body>
@@ -1159,6 +1186,15 @@
       '<div class="member-km">' + m.km.toFixed(1) + '<span>km</span></div></div>';
   }
 
+  function groupBoardHtml(s) {
+    const done = s.groups.filter(g => g.isFinished).length;
+    return '<div class="board-toolbar">' +
+      '<span class="bt-count">' + s.groups.length + ' groups</span>' +
+      (done ? '<span class="bt-done">' + done + ' finished</span>' : '') +
+      '<span class="bt-hint">Tap to expand</span></div>' +
+      '<div class="group-scroll">' + groupRowsHtml(s) + '</div>';
+  }
+
   function groupRowsHtml(s) {
     const myId = state.profile ? state.profile.groupId : null;
     const medals = ['🥇','🥈','🥉'];
@@ -1219,7 +1255,7 @@
       '<div class="stat-cell"><div class="num">' + s.groups.length + '</div><div class="label">Groups</div></div>' +
       '<div class="stat-cell"><div class="num">' + s.totalRunners + '</div><div class="label">Runners</div></div>' +
       '<div class="stat-cell"><div class="num">' + s.companyKm.toFixed(1) + '</div><div class="label">Total km</div></div></div>' +
-      '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
+      groupBoardHtml(s);
     wireGroupRows(p);
     startCd(s);
   }
@@ -1359,7 +1395,7 @@
       '<h2 class="board-h1">Group scoreboard</h2>' +
       '<p class="board-h1-sub">Finishing beats distance — get everyone across</p></div>' +
       todayCardHtml(s) + topRunnersHtml(s) +
-      '<div class="tap-hint">Tap a group to see its members</div>' + groupRowsHtml(s);
+      groupBoardHtml(s);
     wireGroupRows(p);
     startCd(s);
   }
