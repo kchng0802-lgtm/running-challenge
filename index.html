@@ -828,7 +828,8 @@
     logBulk: (t, date, rows) => rpc('leader_log_bulk', { p_token: t, p_date: date, p_rows: rows }),
     myDays: t => rpc('my_group_days', { p_token: t }),
     onDate: (t, d) => rpc('my_group_on_date', { p_token: t, p_date: d }),
-    setViewer: (p, pw) => rpc('admin_set_viewer', { p_passcode: p, p_password: pw })
+    setViewer: (p, pw) => rpc('admin_set_viewer', { p_passcode: p, p_password: pw }),
+    setRunningGroup: (p, id, gid) => rpc('admin_set_running_group', { p_passcode: p, p_employee_id: id, p_group_id: gid })
   };
 
   if ('serviceWorker' in navigator) {
@@ -1544,9 +1545,11 @@
       '</table></div></div>' +
 
       '<div class="admin-section"><h4>All users (' + d.users.length + ')</h4><div class="table-wrap"><table class="admin-table">' +
-      '<tr><th>ID</th><th>Name</th><th>Role</th><th>Group</th><th>Start password</th></tr>' +
+      '<tr><th>ID</th><th>Name</th><th>Role</th><th>Leads</th><th>Runs for</th><th>Start password</th></tr>' +
       d.users.map(u => '<tr><td class="mono">' + esc(u.employeeId) + '</td><td>' + esc(u.name) + '</td><td>' +
-        (u.role === 'leader' ? '<strong>Leader</strong>' : 'Member') + '</td><td>' + esc(u.groupName || '—') + '</td><td>' +
+        (u.role === 'leader' ? '<strong>Leader</strong>' : (u.role === 'viewer' ? 'Viewer' : 'Runner')) + '</td><td>' +
+        esc(u.role === 'leader' ? (u.groupName || '—') : '—') + '</td><td>' +
+        (u.runsForName ? esc(u.runsForName) : '<span style="color:#8A6110">—</span>') + '</td><td>' +
         (u.startPassword
           ? '<code class="pw-chip">' + esc(u.startPassword) + '</code>'
           : (u.hasPassword ? '<span style="color:#1F9C8C">own password set</span>' : '<span style="color:#8A6110">not signed in yet</span>')) +
@@ -1570,6 +1573,22 @@
       '<div class="field" style="max-width:320px;"><label>Employee ID</label><input id="rm-id" type="text" placeholder="BRCM10234" /></div>' +
       '<button class="submit-btn" id="rm-save" style="max-width:220px;margin-top:12px;background:#A32E2E;">Remove permanently</button>' +
       '<div id="rm-status"></div></div>' +
+
+      '<div class="admin-section"><h4>Let a leader run too</h4>' +
+      '<p class="section-hint">A leader can keep leading their own group and also run for another — ' +
+      'useful for a management team. Their kilometres count only toward the group they run for.</p>' +
+      '<div class="admin-config-grid">' +
+      '<div class="field"><label>Person</label><select id="rg-id">' +
+      d.users.filter(u => u.role !== 'viewer').map(u => '<option value="' + esc(u.employeeId) + '">' +
+        esc(u.name) + ' — ' + (u.role === 'leader' ? 'leads ' + esc(u.groupName || '?') : 'runner') +
+        (u.runsForName ? ' · runs for ' + esc(u.runsForName) : ' · not running') + '</option>').join('') +
+      '</select></div>' +
+      '<div class="field"><label>Runs for</label><select id="rg-group">' +
+      '<option value="">— not running —</option>' +
+      d.groups.map(g => '<option value="' + g.id + '">' + esc(g.name) + ' (' + g.memberCount + '/10)</option>').join('') +
+      '</select></div></div>' +
+      '<button class="submit-btn" id="rg-save" style="max-width:220px;margin-top:12px;">Save</button>' +
+      '<div id="rg-status"></div></div>' +
 
       '<div class="admin-section"><h4>Management viewer login</h4>' +
       '<p class="section-hint">A shared read-only login for management. ID is always <strong>VIEWER</strong>. ' +
@@ -1608,6 +1627,27 @@
         st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
         btn.disabled = false; btn.textContent = 'Create leader';
       }
+    });
+
+    p.querySelector('#rg-save').addEventListener('click', async function () {
+      const pass = sessionStorage.getItem(ADMIN_KEY), st = p.querySelector('#rg-status');
+      const sel = p.querySelector('#rg-id');
+      if (!sel || !sel.value) { st.innerHTML = '<div class="error-msg">Nobody to assign yet.</div>'; return; }
+      const gv = p.querySelector('#rg-group').value;
+      const btn = p.querySelector('#rg-save'); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const r = await api.setRunningGroup(pass, sel.value, gv === '' ? null : Number(gv));
+        if (r && r.success) {
+          const msg = esc(r.message);
+          state.adminData = await api.adminData(pass);
+          renderAdmin(p);
+          const s2 = p.querySelector('#rg-status');
+          if (s2) s2.innerHTML = '<div class="confirm-msg">✅ ' + msg + '</div>';
+          return;
+        }
+        st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Failed.') + '</div>';
+      } catch (e) { st.innerHTML = '<div class="error-msg">Could not reach the server.</div>'; }
+      btn.disabled = false; btn.textContent = 'Save';
     });
 
     p.querySelector('#vw-save').addEventListener('click', async function () {
