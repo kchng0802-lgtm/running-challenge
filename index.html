@@ -1518,8 +1518,8 @@
       '<p class="section-hint">Pick a runner, add their distance, and save. Do this as many times as you like.</p>' +
       '<div class="admin-config-grid">' +
       '<div class="field"><label for="q-member">Runner</label><select id="q-member">' +
-      g.members.filter(m => m.employeeId !== state.profile.employeeId).slice().sort((a, b) => a.name.localeCompare(b.name)).map(m =>
-        '<option value="' + esc(m.employeeId) + '">' + esc(m.name) + (m.role === 'leader' ? ' (leader)' : '') + '</option>'
+      g.members.filter(m => m.employee_id !== state.profile.employeeId).slice().sort((a, b) => a.name.localeCompare(b.name)).map(m =>
+        '<option value="' + esc(m.employee_id) + '">' + esc(m.name) + (m.role === 'leader' ? ' (leader)' : '') + '</option>'
       ).join('') + '</select></div>' +
       '<div class="field"><label for="q-date">Date</label>' +
       '<input id="q-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="' + todayStr() + '" /></div>' +
@@ -1538,15 +1538,15 @@
         ? '<div class="date-notice">Already recorded for this date — anything you add now is <strong>on top</strong> of it.</div>'
         : '') +
       '<div class="bulk-grid">' +
-      g.members.filter(m => m.employeeId !== state.profile.employeeId).map(m => {
-        const already = (state.onDate || {})[m.employeeId];
+      g.members.filter(m => m.employee_id !== state.profile.employeeId).map(m => {
+        const already = (state.onDate || {})[m.employee_id];
         return '<div class="bulk-row">' +
         '<div class="bulk-avatar">' + esc(initials(m.name)) + '</div>' +
         '<div class="bulk-name">' + esc(m.name) + (m.role === 'leader' ? ' <span class="lead-tag">LEADER</span>' : '') +
         '<span class="bulk-total">' + Number(m.km).toFixed(2) + ' km total' +
         (already ? ' · <span class="already-chip">' + Number(already).toFixed(2) + ' km this date</span>' : '') +
         '</span></div>' +
-        '<input class="bulk-km" data-id="' + esc(m.employeeId) + '" type="number" step="0.01" min="0" max="200" placeholder="0" />' +
+        '<input class="bulk-km" data-id="' + esc(m.employee_id) + '" type="number" step="0.01" min="0" max="200" placeholder="0" />' +
         '</div>'; }).join('') +
       '</div>' +
       '<button class="submit-btn" id="b-save" style="margin-top:14px;">Save entries</button>' +
@@ -1564,7 +1564,7 @@
       '<div class="admin-section"><h4>Your runners (' + g.members.length + '/' + g.maxGroupSize + ')</h4>' +
       '<div class="table-wrap"><table class="admin-table"><tr><th>Name</th><th>ID</th><th>km</th><th>Login</th></tr>' +
       g.members.map(m => '<tr><td>' + esc(m.name) + (m.role==='leader'?' <span class="lead-tag">LEADER</span>':'') + '</td>' +
-        '<td class="mono">' + esc(m.employeeId) + '</td><td><strong>' + Number(m.km).toFixed(1) + '</strong></td>' +
+        '<td class="mono">' + esc(m.employee_id) + '</td><td><strong>' + Number(m.km).toFixed(1) + '</strong></td>' +
         '<td>' + (m.hasPassword ? '<span style="color:#1F9C8C">✓ active</span>' : '<span style="color:#8A6110">pending</span>') + '</td></tr>').join('') +
       '</table></div></div>' +
 
@@ -1586,17 +1586,11 @@
             '" style="padding:4px 9px;font-size:11px;">Remove</button></td></tr>').join('') + '</table></div>') +
       '</div>';
 
-    p.querySelector('#q-member').addEventListener('change', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
-    p.querySelector('#q-date').addEventListener('change', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
-    p.querySelector('#q-km').addEventListener('input', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
-
     p.querySelector('#q-save').addEventListener('click', async function () {
       const st = p.querySelector('#q-status');
-      const memberSel = p.querySelector('#q-member');
-      const mid = memberSel.value;
+      const mid = p.querySelector('#q-member').value;
       const date = p.querySelector('#q-date').value;
       const km = p.querySelector('#q-km').value.trim();
-      if (!memberSel.options.length) { st.innerHTML = '<div class="error-msg">No runners available to log for.</div>'; return; }
       if (!mid) { st.innerHTML = '<div class="error-msg">Pick a runner.</div>'; return; }
       if (!date) { st.innerHTML = '<div class="error-msg">Pick a date.</div>'; return; }
       if (!km || Number(km) <= 0) { st.innerHTML = '<div class="error-msg">Enter a distance.</div>'; return; }
