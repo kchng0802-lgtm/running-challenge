@@ -1586,11 +1586,17 @@
             '" style="padding:4px 9px;font-size:11px;">Remove</button></td></tr>').join('') + '</table></div>') +
       '</div>';
 
+    p.querySelector('#q-member').addEventListener('change', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
+    p.querySelector('#q-date').addEventListener('change', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
+    p.querySelector('#q-km').addEventListener('input', function () { const s = p.querySelector('#q-status'); if (s) s.innerHTML = ''; });
+
     p.querySelector('#q-save').addEventListener('click', async function () {
       const st = p.querySelector('#q-status');
-      const mid = p.querySelector('#q-member').value;
+      const memberSel = p.querySelector('#q-member');
+      const mid = memberSel.value;
       const date = p.querySelector('#q-date').value;
       const km = p.querySelector('#q-km').value.trim();
+      if (!memberSel.options.length) { st.innerHTML = '<div class="error-msg">No runners available to log for.</div>'; return; }
       if (!mid) { st.innerHTML = '<div class="error-msg">Pick a runner.</div>'; return; }
       if (!date) { st.innerHTML = '<div class="error-msg">Pick a date.</div>'; return; }
       if (!km || Number(km) <= 0) { st.innerHTML = '<div class="error-msg">Enter a distance.</div>'; return; }
