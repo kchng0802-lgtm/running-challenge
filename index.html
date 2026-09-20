@@ -1518,8 +1518,8 @@
       '<p class="section-hint">Pick a runner, add their distance, and save. Do this as many times as you like.</p>' +
       '<div class="admin-config-grid">' +
       '<div class="field"><label for="q-member">Runner</label><select id="q-member">' +
-      g.members.filter(m => m.role !== 'leader').slice().sort((a, b) => a.name.localeCompare(b.name)).map(m =>
-        '<option value="' + esc(m.employeeId) + '">' + esc(m.name) + '</option>'
+      g.members.filter(m => m.employeeId !== state.profile.employeeId).slice().sort((a, b) => a.name.localeCompare(b.name)).map(m =>
+        '<option value="' + esc(m.employeeId) + '">' + esc(m.name) + (m.role === 'leader' ? ' (leader)' : '') + '</option>'
       ).join('') + '</select></div>' +
       '<div class="field"><label for="q-date">Date</label>' +
       '<input id="q-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="' + todayStr() + '" /></div>' +
@@ -1538,11 +1538,11 @@
         ? '<div class="date-notice">Already recorded for this date — anything you add now is <strong>on top</strong> of it.</div>'
         : '') +
       '<div class="bulk-grid">' +
-      g.members.filter(m => m.role !== 'leader').map(m => {
+      g.members.filter(m => m.employeeId !== state.profile.employeeId).map(m => {
         const already = (state.onDate || {})[m.employeeId];
         return '<div class="bulk-row">' +
         '<div class="bulk-avatar">' + esc(initials(m.name)) + '</div>' +
-        '<div class="bulk-name">' + esc(m.name) +
+        '<div class="bulk-name">' + esc(m.name) + (m.role === 'leader' ? ' <span class="lead-tag">LEADER</span>' : '') +
         '<span class="bulk-total">' + Number(m.km).toFixed(2) + ' km total' +
         (already ? ' · <span class="already-chip">' + Number(already).toFixed(2) + ' km this date</span>' : '') +
         '</span></div>' +
