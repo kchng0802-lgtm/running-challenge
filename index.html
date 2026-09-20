@@ -1513,6 +1513,21 @@
 
     p.innerHTML =
       '<div class="leader-note">👤 You keep the score. Your own runs aren\'t counted — the ten runners below are the ones who get your group across the line.</div>' +
+
+      '<div class="admin-section"><h4>Log a run</h4>' +
+      '<p class="section-hint">Pick a runner, add their distance, and save. Do this as many times as you like.</p>' +
+      '<div class="admin-config-grid">' +
+      '<div class="field"><label for="q-member">Runner</label><select id="q-member">' +
+      g.members.filter(m => m.role !== 'leader').slice().sort((a, b) => a.name.localeCompare(b.name)).map(m =>
+        '<option value="' + esc(m.employeeId) + '">' + esc(m.name) + '</option>'
+      ).join('') + '</select></div>' +
+      '<div class="field"><label for="q-date">Date</label>' +
+      '<input id="q-date" type="date" value="' + esc(state.entryDate || todayStr()) + '" min="2026-09-15" max="' + todayStr() + '" /></div>' +
+      '<div class="field"><label for="q-km">Distance (km)</label>' +
+      '<input id="q-km" type="number" step="0.01" min="0" max="200" placeholder="0" /></div></div>' +
+      '<button class="submit-btn" id="q-save" style="max-width:220px;margin-top:12px;">Save entry</button>' +
+      '<div id="q-status"></div></div>' +
+
       '<div class="admin-section"><h4>Record kilometres</h4>' +
       '<p class="section-hint">Pick the date the runs happened, then fill in whoever ran. ' +
       'You can come back and add more for the same date any time.</p>' +
@@ -1523,11 +1538,11 @@
         ? '<div class="date-notice">Already recorded for this date — anything you add now is <strong>on top</strong> of it.</div>'
         : '') +
       '<div class="bulk-grid">' +
-      g.members.map(m => {
+      g.members.filter(m => m.role !== 'leader').map(m => {
         const already = (state.onDate || {})[m.employeeId];
         return '<div class="bulk-row">' +
         '<div class="bulk-avatar">' + esc(initials(m.name)) + '</div>' +
-        '<div class="bulk-name">' + esc(m.name) + (m.role==='leader'?' <span class="lead-tag">YOU</span>':'') +
+        '<div class="bulk-name">' + esc(m.name) +
         '<span class="bulk-total">' + Number(m.km).toFixed(2) + ' km total' +
         (already ? ' · <span class="already-chip">' + Number(already).toFixed(2) + ' km this date</span>' : '') +
         '</span></div>' +
@@ -1570,6 +1585,35 @@
             '<td>' + Number(e.km).toFixed(1) + '</td><td><button class="ghost-btn del-entry" data-id="' + e.id +
             '" style="padding:4px 9px;font-size:11px;">Remove</button></td></tr>').join('') + '</table></div>') +
       '</div>';
+
+    p.querySelector('#q-save').addEventListener('click', async function () {
+      const st = p.querySelector('#q-status');
+      const mid = p.querySelector('#q-member').value;
+      const date = p.querySelector('#q-date').value;
+      const km = p.querySelector('#q-km').value.trim();
+      if (!mid) { st.innerHTML = '<div class="error-msg">Pick a runner.</div>'; return; }
+      if (!date) { st.innerHTML = '<div class="error-msg">Pick a date.</div>'; return; }
+      if (!km || Number(km) <= 0) { st.innerHTML = '<div class="error-msg">Enter a distance.</div>'; return; }
+      const btn = p.querySelector('#q-save'); btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const r = await api.logRun(state.token, mid, date, km, 0);
+        if (r && r.success) {
+          state.entryDate = date;
+          state.myGroup = await api.myGroup(state.token);
+          try { state.onDate = await api.onDate(state.token, date); } catch (e) { state.onDate = {}; }
+          renderManage(p);
+          const s2 = p.querySelector('#q-status');
+          if (s2) s2.innerHTML = '<div class="confirm-msg">✅ Saved.</div>';
+          const km2 = p.querySelector('#q-km'); if (km2) km2.value = '';
+        } else {
+          st.innerHTML = '<div class="error-msg">' + esc(r ? r.error : 'Could not save.') + '</div>';
+          btn.disabled = false; btn.textContent = 'Save entry';
+        }
+      } catch (e) {
+        st.innerHTML = '<div class="error-msg">Could not reach the server.</div>';
+        btn.disabled = false; btn.textContent = 'Save entry';
+      }
+    });
 
     p.querySelector('#b-date').addEventListener('change', async function () {
       state.entryDate = this.value;
